@@ -1,79 +1,54 @@
 package com.example.geo_slam
 
-import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import com.example.geo_slam.databinding.ActivityMainBinding
+import com.example.geo_slam.footslam.FootSlamManager
 
-class MainActivity : AppCompatActivity(), SensorEventListener {
+class MainActivity : AppCompatActivity(), FootSlamManager.OnPositionUpdateListener {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var sensorManager: SensorManager
-    private var accelerometer: Sensor? = null
-    private var gyroscope: Sensor? = null
+    private lateinit var footSlamManager: FootSlamManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Initialisation du SensorManager
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        // Lionel : Initialisation de ton module
+        footSlamManager = FootSlamManager(this)
+        footSlamManager.setOnPositionUpdateListener(this)
 
-        binding.sampleText.text = "Geo-SLAM : Initialisation..."
+        val modelLoaded = footSlamManager.initModel(assets, "ronin_model.tflite")
+        
+        if (modelLoaded) {
+            binding.sampleText.text = "Geo-SLAM : Prêt (IA Chargée)"
+        } else {
+            binding.sampleText.text = "Erreur : ronin_model.tflite absent"
+            Toast.makeText(this, "Lionel, place le modèle dans assets !", Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        // Semaine 1 : Mise en place du SensorManager (100Hz = 10 000 µs)
-        accelerometer?.also { accel ->
-            sensorManager.registerListener(this, accel, 10000)
-        }
-        gyroscope?.also { gyro ->
-            sensorManager.registerListener(this, gyro, 10000)
-        }
+        footSlamManager.startAcquisition() // Lionel : Tu lances la capture à 100Hz
     }
 
     override fun onPause() {
         super.onPause()
-        sensorManager.unregisterListener(this)
-    }
-
-    override fun onSensorChanged(event: SensorEvent?) {
-        event?.let {
-            // Track A : Transmission des signaux IMU au moteur C++ (FootSLAM IA)
-            when (it.sensor.type) {
-                Sensor.TYPE_ACCELEROMETER -> {
-                    processAccelerometer(it.values[0], it.values[1], it.values[2], it.timestamp)
-                }
-                Sensor.TYPE_GYROSCOPE -> {
-                    processGyroscope(it.values[0], it.values[1], it.values[2], it.timestamp)
-                }
-            }
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // Optionnel : Gérer les changements de précision
+        footSlamManager.stopAcquisition()
     }
 
     /**
-     * Méthodes natives implémentées dans 'geo_slam' (C++)
+     * Sonia : C'est ici que tu reçois la position envoyée par Lionel
+     * pour mettre à jour ton interface 3D.
      */
-    private external fun processAccelerometer(x: Float, y: Float, z: Float, timestamp: Long)
-    private external fun processGyroscope(x: Float, y: Float, z: Float, timestamp: Long)
-    private external fun stringFromJNI(): String
-
-    companion object {
-        init {
-            System.loadLibrary("geo_slam")
+    override fun onPositionUpdate(x: Float, y: Float, z: Float) {
+        runOnUiThread {
+            // Exemple : Sonia met à jour un TextView ou son moteur 3D
+            Log.d("GeoSlam_UI", "Nouvelle position reçue de Lionel : $x, $y, $z")
         }
     }
 }

@@ -18,6 +18,7 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags("-std=c++17")
+                arguments("-DANDROID_STL=c++_shared")
             }
         }
     }
@@ -46,6 +47,11 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        prefab = true 
+    }
+    @Suppress("UnstableApiUsage")
+    androidResources {
+        noCompress += "tflite"
     }
 }
 
@@ -55,10 +61,10 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
     
-    // TensorFlow Lite
-    implementation(libs.tensorflow.lite)
-    implementation(libs.tensorflow.lite.gpu)
-    implementation(libs.tensorflow.lite.support)
+    // TensorFlow Lite (Lionel : Module IA)
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
