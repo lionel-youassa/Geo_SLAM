@@ -9,15 +9,14 @@ import android.hardware.SensorManager
 
 /**
  * Lionel : Gestionnaire du FootSLAM IA (RoNIN / TLIO)
- * Gère maintenant l'acquisition des capteurs en direct (100Hz).
  */
 class FootSlamManager(context: Context) : SensorEventListener {
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private var accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private var gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private var rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
-    // Interface pour Sonia (UI/3D)
     interface OnPositionUpdateListener {
         fun onPositionUpdate(x: Float, y: Float, z: Float)
     }
@@ -28,17 +27,15 @@ class FootSlamManager(context: Context) : SensorEventListener {
         this.positionListener = listener
     }
 
-    /**
-     * Charge le modèle TFLite depuis les assets
-     */
     fun initModel(assetManager: AssetManager, modelPath: String): Boolean {
         return loadModelNative(assetManager, modelPath)
     }
 
     fun startAcquisition() {
-        // Fréquence 100Hz (10,000 microsecondes)
+        // Lionel : Acquisition à 100Hz pour les 3 flux requis par RoNIN
         accelerometer?.also { sensorManager.registerListener(this, it, 10000) }
         gyroscope?.also { sensorManager.registerListener(this, it, 10000) }
+        rotationVector?.also { sensorManager.registerListener(this, it, 10000) }
     }
 
     fun stopAcquisition() {
@@ -54,24 +51,25 @@ class FootSlamManager(context: Context) : SensorEventListener {
                 Sensor.TYPE_GYROSCOPE -> {
                     processGyroscope(it.values[0], it.values[1], it.values[2], it.timestamp)
                 }
+                Sensor.TYPE_ROTATION_VECTOR -> {
+                    // RoNIN utilise souvent les quaternions (x, y, z, w)
+                    processOrientation(it.values[0], it.values[1], it.values[2], it.values[3], it.timestamp)
+                }
             }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    /**
-     * Cette méthode sera appelée depuis le C++ (JNI) une fois que l'IA aura calculé la position.
-     * C'est ici que Lionel renvoie les données à Sonia.
-     */
     private fun onPositionCalculated(x: Float, y: Float, z: Float) {
         positionListener?.onPositionUpdate(x, y, z)
     }
 
-    // --- Méthodes Natives (Track A) ---
-    private external fun loadModelNative(assetManager: AssetManager, modelPath: String): Boolean
+    // --- Méthodes Natives Lionel (Track A) ---
+    private external fun loadModelNative(assetManager: AssetManager, model_path: String): Boolean
     private external fun processAccelerometer(x: Float, y: Float, z: Float, timestamp: Long)
     private external fun processGyroscope(x: Float, y: Float, z: Float, timestamp: Long)
+    private external fun processOrientation(x: Float, y: Float, z: Float, w: Float, timestamp: Long)
 
     companion object {
         init {
