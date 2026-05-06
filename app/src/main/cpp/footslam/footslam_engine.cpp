@@ -29,6 +29,7 @@ const int WINDOW_SIZE = 200;
 struct IMUData {
     float acc[3];
     float gyro[3];
+    float ori[4]; // Quaternion: x, y, z, w
 };
 std::vector<IMUData> imu_buffer(WINDOW_SIZE);
 int buffer_index = 0;
@@ -49,24 +50,35 @@ void sendPositionToSonia(float x, float y, float z) {
 
 /**
  * Lionel : Fonction d'inférence RoNIN
- * Transforme le buffer IMU en déplacement relatif.
+ * Transforme le buffer IMU (Accel + Gyro + Ori) en déplacement relatif.
+ * Inversion des axes (Z, Y, X) pour compatibilité avec le format SensorLogger.
  */
 void runInference() {
     if (!interpreter) return;
 
-    // 1. Préparation des données d'entrée [1, 200, 6]
+    // 1. Préparation des données d'entrée [1, 200, 10]
     float* input_tensor = interpreter->typed_input_tensor<float>(0);
     if (!input_tensor) return;
 
-    // On remplit le tenseur dans l'ordre chronologique (gestion du buffer circulaire)
+    // On remplit le tenseur dans l'ordre chronologique avec inversion Z, Y, X (SensorLogger)
     for (int i = 0; i < WINDOW_SIZE; ++i) {
         int idx = (buffer_index + i) % WINDOW_SIZE;
-        input_tensor[i * 6 + 0] = imu_buffer[idx].acc[0];
-        input_tensor[i * 6 + 1] = imu_buffer[idx].acc[1];
-        input_tensor[i * 6 + 2] = imu_buffer[idx].acc[2];
-        input_tensor[i * 6 + 3] = imu_buffer[idx].gyro[0];
-        input_tensor[i * 6 + 4] = imu_buffer[idx].gyro[1];
-        input_tensor[i * 6 + 5] = imu_buffer[idx].gyro[2];
+
+        // Accélération (Z, Y, X)
+        input_tensor[i * 10 + 0] = imu_buffer[idx].acc[2];
+        input_tensor[i * 10 + 1] = imu_buffer[idx].acc[1];
+        input_tensor[i * 10 + 2] = imu_buffer[idx].acc[0];
+
+        // Gyroscope (Z, Y, X)
+        input_tensor[i * 10 + 3] = imu_buffer[idx].gyro[2];
+        input_tensor[i * 10 + 4] = imu_buffer[idx].gyro[1];
+        input_tensor[i * 10 + 5] = imu_buffer[idx].gyro[0];
+
+        // Orientation (QZ, QY, QX, QW)
+        input_tensor[i * 10 + 6] = imu_buffer[idx].ori[2];
+        input_tensor[i * 10 + 7] = imu_buffer[idx].ori[1];
+        input_tensor[i * 10 + 8] = imu_buffer[idx].ori[0];
+        input_tensor[i * 10 + 9] = imu_buffer[idx].ori[3];
     }
 
     // 2. Exécution du modèle IA
@@ -132,6 +144,15 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_processAccelerometer(
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_example_geo_1slam_footslam_FootSlamManager_processOrientation(
+        JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jfloat w, jlong timestamp) {
+    imu_buffer[buffer_index].ori[0] = x;
+    imu_buffer[buffer_index].ori[1] = y;
+    imu_buffer[buffer_index].ori[2] = z;
+    imu_buffer[buffer_index].ori[3] = w;
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(
         JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong timestamp) {
     imu_buffer[buffer_index].gyro[0] = x;
@@ -140,7 +161,7 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(
 
     buffer_index = (buffer_index + 1) % WINDOW_SIZE;
 
-    // On lance l'inférence tous les 10 nouveaux échantillons (chevauchement pour fluidité)
+    // On lance l'inférence tous les 10 nouveaux échantillons pour la fluidité
     if (buffer_index % 10 == 0) {
         runInference();
     }
