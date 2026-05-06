@@ -24,7 +24,7 @@ static jobject g_manager_obj = nullptr;
 static jmethodID g_callback_mid = nullptr;
 static JavaVM* g_jvm = nullptr;
 
-// Buffer circulaire pour RoNIN
+// Buffer circulaire pour RoNIN (Fenêtre temporelle de 200 échantillons)
 const int WINDOW_SIZE = 200;
 struct IMUData {
     float acc[3];
@@ -33,17 +33,63 @@ struct IMUData {
 std::vector<IMUData> imu_buffer(WINDOW_SIZE);
 int buffer_index = 0;
 
-// Sauvegarde de la JVM pour les callbacks asynchrones
 jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     g_jvm = vm;
     return JNI_VERSION_1_6;
+}
+
+void sendPositionToSonia(float x, float y, float z) {
+    JNIEnv* env;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) == JNI_OK) {
+        if (g_manager_obj && g_callback_mid) {
+            env->CallVoidMethod(g_manager_obj, g_callback_mid, x, y, z);
+        }
+    }
+}
+
+/**
+ * Lionel : Fonction d'inférence RoNIN
+ * Transforme le buffer IMU en déplacement relatif.
+ */
+void runInference() {
+    if (!interpreter) return;
+
+    // 1. Préparation des données d'entrée [1, 200, 6]
+    float* input_tensor = interpreter->typed_input_tensor<float>(0);
+    if (!input_tensor) return;
+
+    // On remplit le tenseur dans l'ordre chronologique (gestion du buffer circulaire)
+    for (int i = 0; i < WINDOW_SIZE; ++i) {
+        int idx = (buffer_index + i) % WINDOW_SIZE;
+        input_tensor[i * 6 + 0] = imu_buffer[idx].acc[0];
+        input_tensor[i * 6 + 1] = imu_buffer[idx].acc[1];
+        input_tensor[i * 6 + 2] = imu_buffer[idx].acc[2];
+        input_tensor[i * 6 + 3] = imu_buffer[idx].gyro[0];
+        input_tensor[i * 6 + 4] = imu_buffer[idx].gyro[1];
+        input_tensor[i * 6 + 5] = imu_buffer[idx].gyro[2];
+    }
+
+    // 2. Exécution du modèle IA
+    if (interpreter->Invoke() != kTfLiteOk) {
+        LOGE("Erreur lors de l'inférence RoNIN");
+        return;
+    }
+
+    // 3. Récupération du déplacement (Sortie : dx, dy)
+    float* output_tensor = interpreter->typed_output_tensor<float>(0);
+    if (output_tensor) {
+        float dx = output_tensor[0];
+        float dy = output_tensor[1];
+
+        // 4. Transmission à Sonia (UI) pour affichage
+        sendPositionToSonia(dx, dy, 0.0f);
+    }
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(
         JNIEnv* env, jobject thiz, jobject asset_manager, jstring model_path) {
 
-    // Mémorisation de l'objet pour le callback vers Sonia
     if (g_manager_obj != nullptr) env->DeleteGlobalRef(g_manager_obj);
     g_manager_obj = env->NewGlobalRef(thiz);
     jclass clazz = env->GetObjectClass(thiz);
@@ -54,7 +100,6 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(
 
     AAsset* asset = AAssetManager_open(mgr, path, AASSET_MODE_BUFFER);
     if (!asset) {
-        LOGE("Erreur : Impossible d'ouvrir le modèle %s", path);
         env->ReleaseStringUTFChars(model_path, path);
         return JNI_FALSE;
     }
@@ -71,22 +116,11 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(
     tflite::InterpreterBuilder(*model, resolver)(&interpreter);
 
     if (!interpreter || interpreter->AllocateTensors() != kTfLiteOk) {
-        LOGE("Erreur : Échec initialisation TFLite");
         return JNI_FALSE;
     }
 
-    LOGI("Lionel : Moteur IA prêt et Callback configuré pour Sonia.");
     env->ReleaseStringUTFChars(model_path, path);
     return JNI_TRUE;
-}
-
-void sendPositionToSonia(float x, float y, float z) {
-    JNIEnv* env;
-    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) == JNI_OK) {
-        if (g_manager_obj && g_callback_mid) {
-            env->CallVoidMethod(g_manager_obj, g_callback_mid, x, y, z);
-        }
-    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -106,8 +140,8 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(
 
     buffer_index = (buffer_index + 1) % WINDOW_SIZE;
 
-    // Lionel : Simulation d'un calcul de position pour tester le lien avec Sonia
-    if (buffer_index == 0) {
-        sendPositionToSonia(1.0f, 2.0f, 0.0f);
+    // On lance l'inférence tous les 10 nouveaux échantillons (chevauchement pour fluidité)
+    if (buffer_index % 10 == 0) {
+        runInference();
     }
 }
