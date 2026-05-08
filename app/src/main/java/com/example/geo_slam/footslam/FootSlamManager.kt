@@ -9,6 +9,7 @@ import android.hardware.SensorManager
 
 /**
  * Lionel : Gestionnaire du FootSLAM IA (RoNIN / TLIO)
+ * Gère l'acquisition des capteurs en direct (100Hz).
  */
 class FootSlamManager(context: Context) : SensorEventListener {
 
@@ -17,6 +18,7 @@ class FootSlamManager(context: Context) : SensorEventListener {
     private var gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private var rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
+    // Interface pour Sonia (UI/3D)
     interface OnPositionUpdateListener {
         fun onPositionUpdate(x: Float, y: Float, z: Float)
     }
@@ -27,6 +29,9 @@ class FootSlamManager(context: Context) : SensorEventListener {
         this.positionListener = listener
     }
 
+    /**
+     * Charge le modèle TFLite depuis les assets
+     */
     fun initModel(assetManager: AssetManager, modelPath: String): Boolean {
         return loadModelNative(assetManager, modelPath)
     }
@@ -42,6 +47,13 @@ class FootSlamManager(context: Context) : SensorEventListener {
         sensorManager.unregisterListener(this)
     }
 
+    /**
+     * Réinitialise la trajectoire (Semaine 2)
+     */
+    fun reset() {
+        resetPositionNative()
+    }
+
     override fun onSensorChanged(event: SensorEvent?) {
         event?.let {
             when (it.sensor.type) {
@@ -52,7 +64,6 @@ class FootSlamManager(context: Context) : SensorEventListener {
                     processGyroscope(it.values[0], it.values[1], it.values[2], it.timestamp)
                 }
                 Sensor.TYPE_ROTATION_VECTOR -> {
-                    // RoNIN utilise souvent les quaternions (x, y, z, w)
                     processOrientation(it.values[0], it.values[1], it.values[2], it.values[3], it.timestamp)
                 }
             }
@@ -61,15 +72,20 @@ class FootSlamManager(context: Context) : SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+    /**
+     * Cette méthode sera appelée depuis le C++ (JNI) une fois que l'IA aura calculé la position.
+     * C'est ici que Lionel renvoie les données à Sonia.
+     */
     private fun onPositionCalculated(x: Float, y: Float, z: Float) {
         positionListener?.onPositionUpdate(x, y, z)
     }
 
-    // --- Méthodes Natives Lionel (Track A) ---
-    private external fun loadModelNative(assetManager: AssetManager, model_path: String): Boolean
+    // --- Méthodes Natives (Track A) ---
+    private external fun loadModelNative(assetManager: AssetManager, modelPath: String): Boolean
     private external fun processAccelerometer(x: Float, y: Float, z: Float, timestamp: Long)
     private external fun processGyroscope(x: Float, y: Float, z: Float, timestamp: Long)
     private external fun processOrientation(x: Float, y: Float, z: Float, w: Float, timestamp: Long)
+    private external fun resetPositionNative()
 
     companion object {
         init {
