@@ -1,79 +1,66 @@
 package com.example.geo_slam
 
-import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import com.example.geo_slam.databinding.ActivityMainBinding
+import com.example.geo_slam.footslam.FootSlamManager
+import java.util.Locale
 
-class MainActivity : AppCompatActivity(), SensorEventListener {
+class MainActivity : AppCompatActivity(), FootSlamManager.OnPositionUpdateListener {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var sensorManager: SensorManager
-    private var accelerometer: Sensor? = null
-    private var gyroscope: Sensor? = null
+    private lateinit var footSlamManager: FootSlamManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Initialisation du SensorManager
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        // Lionel : Initialisation du module FootSLAM (Lead IA)
+        footSlamManager = FootSlamManager(this)
+        footSlamManager.setOnPositionUpdateListener(this)
 
-        binding.sampleText.text = "Geo-SLAM : Initialisation..."
+        // Chargement du modèle RoNIN
+        val modelLoaded = footSlamManager.initModel(assets, "ronin_model.tflite")
+        
+        if (modelLoaded) {
+            binding.sampleText.text = "Geo-SLAM : Moteur IA Opérationnel"
+        } else {
+            binding.sampleText.text = "Erreur : ronin_model.tflite introuvable"
+            Toast.makeText(this, "Lionel, vérifie le dossier assets !", Toast.LENGTH_LONG).show()
+        }
+
+        // Action du bouton Reset (Semaine 2)
+        binding.btnReset.setOnClickListener {
+            footSlamManager.reset()
+            updateUI(0f, 0f)
+            Toast.makeText(this, "Trajectoire réinitialisée", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        // Semaine 1 : Mise en place du SensorManager (100Hz = 10 000 µs)
-        accelerometer?.also { accel ->
-            sensorManager.registerListener(this, accel, 10000)
-        }
-        gyroscope?.also { gyro ->
-            sensorManager.registerListener(this, gyro, 10000)
-        }
+        footSlamManager.startAcquisition()
     }
 
     override fun onPause() {
         super.onPause()
-        sensorManager.unregisterListener(this)
-    }
-
-    override fun onSensorChanged(event: SensorEvent?) {
-        event?.let {
-            // Track A : Transmission des signaux IMU au moteur C++ (FootSLAM IA)
-            when (it.sensor.type) {
-                Sensor.TYPE_ACCELEROMETER -> {
-                    processAccelerometer(it.values[0], it.values[1], it.values[2], it.timestamp)
-                }
-                Sensor.TYPE_GYROSCOPE -> {
-                    processGyroscope(it.values[0], it.values[1], it.values[2], it.timestamp)
-                }
-            }
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // Optionnel : Gérer les changements de précision
+        footSlamManager.stopAcquisition()
     }
 
     /**
-     * Méthodes natives implémentées dans 'geo_slam' (C++)
+     * Callback déclenché par le C++ (Lionel) pour mettre à jour l'UI (Sonia)
      */
-    private external fun processAccelerometer(x: Float, y: Float, z: Float, timestamp: Long)
-    private external fun processGyroscope(x: Float, y: Float, z: Float, timestamp: Long)
-    private external fun stringFromJNI(): String
-
-    companion object {
-        init {
-            System.loadLibrary("geo_slam")
+    override fun onPositionUpdate(x: Float, y: Float, z: Float) {
+        runOnUiThread {
+            updateUI(x, y)
         }
+    }
+
+    private fun updateUI(x: Float, y: Float) {
+        binding.tvPosX.text = String.format(Locale.US, "Position X : %.2f m", x)
+        binding.tvPosY.text = String.format(Locale.US, "Position Y : %.2f m", y)
     }
 }

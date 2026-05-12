@@ -1,0 +1,2 @@
+Lionel, place ton modèle 'ronin_model.tflite' dans ce dossier.
+Le code C++ ira le chercher ici.
