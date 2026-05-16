@@ -1,11 +1,47 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("geo_slam")
 
+# OpenCV (Narcisse : vSLAM) — linkage statique direct
+set(OPENCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/opencv)
+set(OPENCV_INCLUDE ${OPENCV_DIR}/jni/include)
+set(OPENCV_LIBS_DIR ${OPENCV_DIR}/staticlibs/${ANDROID_ABI})
+set(OPENCV_3RDPARTY_DIR ${OPENCV_DIR}/3rdparty/libs/${ANDROID_ABI})
+
+add_library(opencv_core       STATIC IMPORTED)
+add_library(opencv_imgproc    STATIC IMPORTED)
+add_library(opencv_features2d STATIC IMPORTED)
+add_library(cpufeatures       STATIC IMPORTED)
+add_library(tbb               STATIC IMPORTED)
+add_library(ittnotify         STATIC IMPORTED)
+
+set_target_properties(opencv_core       PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_core.a)
+set_target_properties(opencv_imgproc    PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_imgproc.a)
+set_target_properties(opencv_features2d PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_features2d.a)
+set_target_properties(cpufeatures       PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libcpufeatures.a)
+set_target_properties(tbb               PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libtbb.a)
+set_target_properties(ittnotify         PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libittnotify.a)
+
+# Libs spécifiques par architecture
+if(ANDROID_ABI MATCHES "arm")
+    add_library(tegra_hal STATIC IMPORTED)
+    set_target_properties(tegra_hal PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libtegra_hal.a)
+    set(ARCH_SPECIFIC_LIBS tegra_hal)
+elseif(ANDROID_ABI MATCHES "x86")
+    add_library(ippicv STATIC IMPORTED)
+    add_library(ippiw  STATIC IMPORTED)
+    set_target_properties(ippicv PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libippicv.a)
+    set_target_properties(ippiw  PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libippiw.a)
+    set(ARCH_SPECIFIC_LIBS ippicv ippiw)
+else()
+    set(ARCH_SPECIFIC_LIBS "")
+endif()
+
 # Inclusion des répertoires d'en-tête
 include_directories(
     footslam
     vslam
     ui_render
+    ${OPENCV_INCLUDE}
 )
 
 # Lionel : TFLite via Prefab (nécessite que le AAR expose des métadonnées Prefab).
@@ -37,4 +73,13 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     log
     jnigraphics
     ${TFLITE_LIB}
+    opencv_features2d
+    opencv_imgproc
+    opencv_core
+    ${ARCH_SPECIFIC_LIBS}
+    tbb
+    ittnotify
+    cpufeatures
+    z
+    dl
 )

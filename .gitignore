@@ -17,3 +17,6 @@ local.properties
 # Claude Code
 CLAUDE.md
 .claude/
+
+# OpenCV SDK (trop lourd pour Git — télécharger séparément)
+app/src/main/cpp/opencv/

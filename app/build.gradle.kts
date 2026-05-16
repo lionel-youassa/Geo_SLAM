@@ -21,6 +21,9 @@ android {
                 arguments("-DANDROID_STL=c++_shared")
             }
         }
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
