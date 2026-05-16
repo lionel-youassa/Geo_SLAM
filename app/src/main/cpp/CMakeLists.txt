@@ -10,6 +10,8 @@ set(OPENCV_3RDPARTY_DIR ${OPENCV_DIR}/3rdparty/libs/${ANDROID_ABI})
 add_library(opencv_core       STATIC IMPORTED)
 add_library(opencv_imgproc    STATIC IMPORTED)
 add_library(opencv_features2d STATIC IMPORTED)
+add_library(opencv_calib3d    STATIC IMPORTED)
+add_library(opencv_flann      STATIC IMPORTED)
 add_library(cpufeatures       STATIC IMPORTED)
 add_library(tbb               STATIC IMPORTED)
 add_library(ittnotify         STATIC IMPORTED)
@@ -17,6 +19,8 @@ add_library(ittnotify         STATIC IMPORTED)
 set_target_properties(opencv_core       PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_core.a)
 set_target_properties(opencv_imgproc    PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_imgproc.a)
 set_target_properties(opencv_features2d PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_features2d.a)
+set_target_properties(opencv_calib3d    PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_calib3d.a)
+set_target_properties(opencv_flann      PROPERTIES IMPORTED_LOCATION ${OPENCV_LIBS_DIR}/libopencv_flann.a)
 set_target_properties(cpufeatures       PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libcpufeatures.a)
 set_target_properties(tbb               PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libtbb.a)
 set_target_properties(ittnotify         PROPERTIES IMPORTED_LOCATION ${OPENCV_3RDPARTY_DIR}/libittnotify.a)
@@ -73,7 +77,9 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     log
     jnigraphics
     ${TFLITE_LIB}
+    opencv_calib3d
     opencv_features2d
+    opencv_flann
     opencv_imgproc
     opencv_core
     ${ARCH_SPECIFIC_LIBS}
