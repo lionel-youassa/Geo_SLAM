@@ -20,21 +20,24 @@
 std::unique_ptr<tflite::Interpreter> interpreter;
 std::unique_ptr<tflite::FlatBufferModel> model;
 
-// --- Structure EKF Améliorée (Semaine 4.2 : Vitesse & Fluidité) ---
+// --- Structure EKF Améliorée (Semaine 5 : Altitude & Pression) ---
 struct EKFState {
     float x = 0.0f;
     float y = 0.0f;
-    float vx = 0.0f;      // Vitesse estimée X
-    float vy = 0.0f;      // Vitesse estimée Y
+    float z = 0.0f;       // Dimension verticale
+    float vx = 0.0f;
+    float vy = 0.0f;
     float P = 1.0f;       // Incertitude
     long long last_timestamp_ns = 0;
 
+    // Baromètre
+    float reference_pressure = -1.0f; // Pression au point de départ
+
     const float R = 0.5f;  // Bruit de mesure (IA)
-    const float Q = 0.01f; // Bruit de processus (incertitude par seconde)
+    const float Q = 0.01f; // Bruit de processus
 };
 
 static EKFState g_ekf;
-static float current_z = 0.0f;
 
 // --- Semaine 3 : Contraintes Physiques ---
 const float MAX_STEP_LIMIT = 2.0f;
@@ -71,8 +74,7 @@ void sendPositionToSonia(float x, float y, float z) {
 }
 
 /**
- * Phase de Prédiction (100Hz)
- * Fait avancer la position entre deux inférences IA pour la fluidité.
+ * Lionel : Phase de Prédiction (100Hz)
  */
 void ekfPredict(long long timestamp_ns) {
     if (g_ekf.last_timestamp_ns == 0) {
@@ -81,38 +83,46 @@ void ekfPredict(long long timestamp_ns) {
     }
 
     float dt = (timestamp_ns - g_ekf.last_timestamp_ns) / 1000000000.0f;
-    if (dt <= 0 || dt > 0.1) { // Sécurité si saut de temps
+    if (dt <= 0 || dt > 0.1) {
         g_ekf.last_timestamp_ns = timestamp_ns;
         return;
     }
 
-    // 1. Mise à jour Position = Position + Vitesse * dt
     g_ekf.x += g_ekf.vx * dt;
     g_ekf.y += g_ekf.vy * dt;
-
-    // 2. Augmentation de l'incertitude
     g_ekf.P += g_ekf.Q * dt;
 
     g_ekf.last_timestamp_ns = timestamp_ns;
 }
 
 /**
- * Phase de Correction (IA RoNIN)
- * Met à jour la position et ajuste la vitesse.
+ * Lionel : Correction via IA (RoNIN)
  */
 void ekfUpdate(float dx_ia, float dy_ia) {
     float K = g_ekf.P / (g_ekf.P + g_ekf.R);
-
-    // Correction Position basée sur le déplacement prédit par l'IA
     g_ekf.x += K * dx_ia;
     g_ekf.y += K * dy_ia;
-
-    // Mise à jour Vitesse : on estime la vitesse moyenne sur la fenêtre d'inférence (~0.1s)
     g_ekf.vx = dx_ia / 0.1f;
     g_ekf.vy = dy_ia / 0.1f;
-
-    // Réduction de l'incertitude
     g_ekf.P = (1.0f - K) * g_ekf.P;
+}
+
+/**
+ * Semaine 5 : Calcul de l'altitude relative
+ * h = 44330 * (1 - (P/P0)^(1/5.255))
+ */
+void updateAltitude(float pressure) {
+    if (g_ekf.reference_pressure < 0) {
+        g_ekf.reference_pressure = pressure;
+        g_ekf.z = 0.0f;
+        return;
+    }
+
+    // Calcul de l'altitude relative en mètres
+    float altitude = 44330.0f * (1.0f - pow(pressure / g_ekf.reference_pressure, 0.1903f));
+
+    // Lissage simple pour le Z (Filtre passe-bas)
+    g_ekf.z = 0.9f * g_ekf.z + 0.1f * altitude;
 }
 
 void runInference() {
@@ -141,18 +151,23 @@ void runInference() {
     if (output_tensor) {
         float dx = output_tensor[0];
         float dy = output_tensor[1];
-
-        // Correction EKF via sortie IA
         ekfUpdate(dx, dy);
-
-        trajectory_history.push_back({g_ekf.x, g_ekf.y, current_z});
+        trajectory_history.push_back({g_ekf.x, g_ekf.y, g_ekf.z});
     }
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_example_geo_1slam_footslam_FootSlamManager_processPressure(
+        JNIEnv* env, jobject thiz, jfloat pressure, jlong timestamp) {
+    updateAltitude(pressure);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_resetPositionNative(JNIEnv* env, jobject thiz) {
-    g_ekf.x = 0.0f; g_ekf.y = 0.0f; g_ekf.vx = 0.0f; g_ekf.vy = 0.0f;
+    g_ekf.x = 0.0f; g_ekf.y = 0.0f; g_ekf.z = 0.0f;
+    g_ekf.vx = 0.0f; g_ekf.vy = 0.0f;
     g_ekf.P = 1.0f; g_ekf.last_timestamp_ns = 0;
+    g_ekf.reference_pressure = -1.0f;
     trajectory_history.clear();
 }
 
@@ -187,21 +202,14 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_processAccelerometer(
         JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong timestamp) {
-
-    // 1. Prediction EKF pour la fluidité
     ekfPredict(timestamp);
-
-    // 2. Filtrage IMU
     filtered_acc[0] = ALPHA_IMU * x + (1.0f - ALPHA_IMU) * filtered_acc[0];
     filtered_acc[1] = ALPHA_IMU * y + (1.0f - ALPHA_IMU) * filtered_acc[1];
     filtered_acc[2] = ALPHA_IMU * z + (1.0f - ALPHA_IMU) * filtered_acc[2];
-
     imu_buffer[buffer_index].acc[0] = filtered_acc[0];
     imu_buffer[buffer_index].acc[1] = filtered_acc[1];
     imu_buffer[buffer_index].acc[2] = filtered_acc[2];
-
-    // 3. Envoi immédiat à Sonia (Rendu fluide à 100Hz)
-    sendPositionToSonia(g_ekf.x, g_ekf.y, current_z);
+    sendPositionToSonia(g_ekf.x, g_ekf.y, g_ekf.z);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -219,11 +227,9 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(
     filtered_gyro[0] = ALPHA_IMU * x + (1.0f - ALPHA_IMU) * filtered_gyro[0];
     filtered_gyro[1] = ALPHA_IMU * y + (1.0f - ALPHA_IMU) * filtered_gyro[1];
     filtered_gyro[2] = ALPHA_IMU * z + (1.0f - ALPHA_IMU) * filtered_gyro[2];
-
     imu_buffer[buffer_index].gyro[0] = filtered_gyro[0];
     imu_buffer[buffer_index].gyro[1] = filtered_gyro[1];
     imu_buffer[buffer_index].gyro[2] = filtered_gyro[2];
-
     buffer_index = (buffer_index + 1) % WINDOW_SIZE;
     if (buffer_index % 10 == 0) runInference();
 }
