@@ -20,16 +20,19 @@
 std::unique_ptr<tflite::Interpreter> interpreter;
 std::unique_ptr<tflite::FlatBufferModel> model;
 
-static float current_x = 0.0f;
-static float current_y = 0.0f;
+// --- Structure EKF (Semaine 4) ---
+struct EKFState {
+    float x = 0.0f;
+    float y = 0.0f;
+    float P = 1.0f;       // Incertitude initiale
+    const float R = 0.5f; // Bruit de mesure (IA)
+    const float Q = 0.05f; // Bruit de processus (mouvement)
+};
+
+static EKFState g_ekf;
 static float current_z = 0.0f;
 
-static float smoothed_dx = 0.0f;
-static float smoothed_dy = 0.0f;
-const float ALPHA_OUT = 0.2f;
-
 // --- Semaine 3 : Contraintes Physiques ---
-// Limite de déplacement max par inférence (environ 2m en 0.1s = 72km/h, très large pour un technicien)
 const float MAX_STEP_LIMIT = 2.0f;
 
 // Stockage IMU & Historique
@@ -65,15 +68,33 @@ void sendPositionToSonia(float x, float y, float z) {
 
 /**
  * Lionel : Détection d'incohérence physique
- * Bride le déplacement si l'IA prédit une vitesse impossible.
  */
 void applyPhysicalConstraints(float& dx, float& dy) {
     float step_dist = std::sqrt(dx * dx + dy * dy);
     if (step_dist > MAX_STEP_LIMIT) {
         LOGE("Incohérence physique détectée : déplacement de %.2fm ignoré.", step_dist);
-        dx = 0; // On ignore ou on bride le mouvement aberrant
-        dy = 0;
+        dx = 0.0f;
+        dy = 0.0f;
     }
+}
+
+/**
+ * Filtre de Kalman (Étape de Correction)
+ * Fusionne la prédiction de l'IA avec l'état actuel.
+ */
+void ekfUpdate(float dx, float dy) {
+    // 1. Prédiction (très simple ici : x = x + dx_ia)
+    // Dans un vrai EKF, on prédirait via l'IMU, mais ici on traite la sortie RoNIN
+
+    // 2. Gain de Kalman : K = P / (P + R)
+    float K = g_ekf.P / (g_ekf.P + g_ekf.R);
+
+    // 3. Correction de l'état (Position)
+    g_ekf.x += K * dx;
+    g_ekf.y += K * dy;
+
+    // 4. Mise à jour de l'incertitude : P = (1 - K) * P + Q
+    g_ekf.P = (1.0f - K) * g_ekf.P + g_ekf.Q;
 }
 
 void runInference() {
@@ -103,25 +124,22 @@ void runInference() {
         float dx = output_tensor[0];
         float dy = output_tensor[1];
 
-        // --- Semaine 3 : Vérification de cohérence ---
+        // Vérification de cohérence physique (Semaine 3)
         applyPhysicalConstraints(dx, dy);
 
-        // Lissage et Intégration
-        smoothed_dx = ALPHA_OUT * dx + (1.0f - ALPHA_OUT) * smoothed_dx;
-        smoothed_dy = ALPHA_OUT * dy + (1.0f - ALPHA_OUT) * smoothed_dy;
+        // --- Mise à jour EKF (Semaine 4) ---
+        ekfUpdate(dx, dy);
 
-        current_x += smoothed_dx;
-        current_y += smoothed_dy;
-
-        trajectory_history.push_back({current_x, current_y, current_z});
-        sendPositionToSonia(current_x, current_y, current_z);
+        trajectory_history.push_back({g_ekf.x, g_ekf.y, current_z});
+        sendPositionToSonia(g_ekf.x, g_ekf.y, current_z);
     }
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_resetPositionNative(JNIEnv* env, jobject thiz) {
-    current_x = 0.0f; current_y = 0.0f; current_z = 0.0f;
-    smoothed_dx = 0.0f; smoothed_dy = 0.0f;
+    g_ekf.x = 0.0f;
+    g_ekf.y = 0.0f;
+    g_ekf.P = 1.0f;
     trajectory_history.clear();
 }
 
