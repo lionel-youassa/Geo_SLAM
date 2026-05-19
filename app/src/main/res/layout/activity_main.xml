@@ -38,6 +38,13 @@
             android:layout_height="wrap_content"
             android:text="Position Y : 0.00 m"
             android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/tv_pos_z"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Altitude Z : 0.00 m"
+            android:textSize="16sp" />
     </LinearLayout>
 
     <Button

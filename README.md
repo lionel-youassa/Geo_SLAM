@@ -20,6 +20,36 @@ Projet de localisation en environnement industriel (GPS-Denied) via smartphone, 
 
 ---
 
+## 🛠 Journal de Développement : Lionel (FootSLAM IA)
+
+Voici les étapes majeures réalisées pour la mise sur pied du moteur de localisation inertielle :
+
+### 1. Acquisition IMU Haute Fréquence (100Hz)
+- **Technique** : Utilisation du `SensorManager` avec `SENSOR_DELAY_FASTEST` (10ms).
+- **Justification** : Les modèles de Deep Learning (RoNIN) nécessitent une résolution temporelle fine pour capturer les micro-mouvements de la marche humaine et réduire le bruit d'intégration.
+
+### 2. Intégration RoNIN via TFLite (C++/JNI)
+- **Technique** : Implémentation du moteur d'inférence en C++ pour minimiser la latence.
+- **Justification** : Le passage par le NDK permet de traiter les fenêtres glissantes de 200 échantillons sans bloquer le thread UI de l'application.
+
+### 3. Couche de Contraintes Physiques
+- **Technique** : Algorithme de bridage de la vitesse (`MAX_STEP_LIMIT`).
+- **Justification** : Élimination des "sauts" de position aberrants prédits par l'IA lors de changements brusques d'orientation ou d'interférences magnétiques.
+
+### 4. Filtre de Kalman Étendu (EKF) & Prédiction Inertielle
+- **Technique** : Fusion statistique entre les prédictions IA et l'odométrie IMU.
+- **Justification** : 
+    - **Fluidité** : La prédiction à 100Hz permet un rendu visuel fluide (60 FPS+) pour Sonia, même si l'IA tourne à une fréquence plus basse.
+    - **Robustesse** : Le Gain de Kalman pondère la confiance accordée à l'IA selon l'incertitude accumulée.
+
+### 5. Altitude 3D (Baromètre) & ZUPT (Zero Velocity Update)
+- **Technique** : Intégration du capteur de pression et détection d'immobilité par seuillage Gyro/Acc.
+- **Justification** : 
+    - **Verticalité** : La formule barométrique permet la gestion des escaliers et des changements d'étages en usine.
+    - **ZUPT** : Arrête instantanément la dérive (drift) de position lorsque l'utilisateur est immobile, garantissant la stabilité de l'avatar sur la carte.
+
+---
+
 ## 📂 Structure du Projet
 
 ### Code Android (Kotlin)
@@ -44,28 +74,10 @@ Assurez-vous d'avoir installé Git LFS : `git lfs install`.
 
 ## 🛠 Guide des Commandes Git Essentielles
 
-Ce guide regroupe les commandes fondamentales selon notre flux de travail.
+### 1. Gestion des Branches
+- `git checkout -b feat/<prenom>-<nom-de-la-tache>` : Crée une nouvelle branche.
 
-### 1. Gestion des Branches (Navigation & Création)
-- `git branch` : Liste les branches locales. (`*` indique la branche actuelle).
-- `git checkout <nom-de-la-branche>` : Bascule sur une branche existante.
-- `git checkout -b feature/<prenom>-<nom-de-la-tache>` : Crée une nouvelle branche et y bascule.
-  - *Exemple* : `git checkout -b feature/lionel-local-routes-injection`
+### 2. Publication
+- `git push origin <nom-de-la-branche>` : Envoie vos commits vers GitHub.
 
-### 2. Synchronisation avec le Dépôt Distant
-- `git pull origin develop` : Récupère et fusionne les dernières modifications du serveur dans votre branche.
-
-### 3. Enregistrement des Modifications (Commits)
-- `git add .` : Ajoute tous les fichiers modifiés à la zone de staging.
-- `git commit -m "<type>(<portée>): <description>"` : Enregistre l'instantané de votre code.
-  - *Types* : `feat`, `fix`, `docs`, `refactor`, `style`.
-  - *Exemple* : `git commit -m "feat(navigation): complete french instructions parser"`
-
-### 4. Intégration des Changements (Merge)
-- `git merge develop` : Fusionne les nouveautés de la branche `develop` dans votre branche active (indispensable pour rester à jour).
-
-### 5. Publication vers le Serveur Distant
-- `git push origin <nom-de-la-branche>` : Envoie vos commits vers GitHub avant de créer une Pull Request.
-  - *Exemple* : `git push origin feature/lionel-navigation-parser`
-
-> **Note** : Avant chaque push, effectuez toujours un pull de la branche principale pour résoudre les conflits localement.
+> **Note** : Toujours faire un `git pull origin develop` avant de fusionner votre travail.

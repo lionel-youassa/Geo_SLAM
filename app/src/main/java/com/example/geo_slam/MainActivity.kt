@@ -26,7 +26,7 @@ class MainActivity : AppCompatActivity(), FootSlamManager.OnPositionUpdateListen
         val modelLoaded = footSlamManager.initModel(assets, "ronin_model.tflite")
         
         if (modelLoaded) {
-            binding.sampleText.text = "Geo-SLAM : Moteur IA Opérationnel"
+            binding.sampleText.text = "Geo-SLAM : Moteur IA 3D Opérationnel"
         } else {
             binding.sampleText.text = "Erreur : ronin_model.tflite introuvable"
             Toast.makeText(this, "Lionel, vérifie le dossier assets !", Toast.LENGTH_LONG).show()
@@ -35,7 +35,7 @@ class MainActivity : AppCompatActivity(), FootSlamManager.OnPositionUpdateListen
         // Action du bouton Reset (Semaine 2)
         binding.btnReset.setOnClickListener {
             footSlamManager.reset()
-            updateUI(0f, 0f)
+            updateUI(0f, 0f, 0f)
             Toast.makeText(this, "Trajectoire réinitialisée", Toast.LENGTH_SHORT).show()
         }
     }
@@ -52,15 +52,18 @@ class MainActivity : AppCompatActivity(), FootSlamManager.OnPositionUpdateListen
 
     /**
      * Callback déclenché par le C++ (Lionel) pour mettre à jour l'UI (Sonia)
+     * Maintenant avec la gestion de l'altitude Z.
      */
     override fun onPositionUpdate(x: Float, y: Float, z: Float) {
         runOnUiThread {
-            updateUI(x, y)
+            updateUI(x, y, z)
         }
     }
 
-    private fun updateUI(x: Float, y: Float) {
+    private fun updateUI(x: Float, y: Float, z: Float) {
         binding.tvPosX.text = String.format(Locale.US, "Position X : %.2f m", x)
         binding.tvPosY.text = String.format(Locale.US, "Position Y : %.2f m", y)
+        // Sonia : On affiche maintenant le Z calculé par Lionel via le baromètre
+        binding.tvPosZ?.text = String.format(Locale.US, "Altitude Z : %.2f m", z)
     }
 }

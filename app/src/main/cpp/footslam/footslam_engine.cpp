@@ -20,21 +20,26 @@
 std::unique_ptr<tflite::Interpreter> interpreter;
 std::unique_ptr<tflite::FlatBufferModel> model;
 
-// --- Structure EKF Améliorée (Semaine 5 : Altitude & Pression) ---
+// --- Structure EKF Améliorée (Semaine 5 : Altitude & ZUPT) ---
 struct EKFState {
     float x = 0.0f;
     float y = 0.0f;
-    float z = 0.0f;       // Dimension verticale
+    float z = 0.0f;
     float vx = 0.0f;
     float vy = 0.0f;
-    float P = 1.0f;       // Incertitude
+    float P = 1.0f;
     long long last_timestamp_ns = 0;
 
     // Baromètre
-    float reference_pressure = -1.0f; // Pression au point de départ
+    float reference_pressure = -1.0f;
 
-    const float R = 0.5f;  // Bruit de mesure (IA)
-    const float Q = 0.01f; // Bruit de processus
+    // ZUPT (Zero Velocity Update)
+    bool is_stationary = true;
+    const float STILLNESS_THRESHOLD_GYRO = 0.05f; // rad/s
+    const float STILLNESS_THRESHOLD_ACC = 0.2f;   // m/s^2 (écart à la gravité)
+
+    const float R = 0.5f;
+    const float Q = 0.01f;
 };
 
 static EKFState g_ekf;
@@ -74,7 +79,48 @@ void sendPositionToSonia(float x, float y, float z) {
 }
 
 /**
- * Lionel : Phase de Prédiction (100Hz)
+ * Lionel : Détection d'incohérence physique
+ * Justification : Élimine les sauts de position impossibles physiquement.
+ */
+void applyPhysicalConstraints(float& dx, float& dy) {
+    float step_dist = std::sqrt(dx * dx + dy * dy);
+    if (step_dist > MAX_STEP_LIMIT) {
+        LOGE("Incohérence physique détectée : déplacement de %.2fm ignoré.", step_dist);
+        dx = 0.0f;
+        dy = 0.0f;
+    }
+}
+
+/**
+ * Lionel : Détection de l'immobilité (ZUPT)
+ * Justification : Arrête la dérive (drift) quand le capteur est stable.
+ */
+void checkStillness() {
+    float gyro_mag = std::sqrt(filtered_gyro[0]*filtered_gyro[0] +
+                               filtered_gyro[1]*filtered_gyro[1] +
+                               filtered_gyro[2]*filtered_gyro[2]);
+
+    float acc_mag = std::sqrt(filtered_acc[0]*filtered_acc[0] +
+                              filtered_acc[1]*filtered_acc[1] +
+                              filtered_acc[2]*filtered_acc[2]);
+    float acc_diff = std::abs(acc_mag - 9.81f);
+
+    bool now_stationary = (gyro_mag < g_ekf.STILLNESS_THRESHOLD_GYRO &&
+                           acc_diff < g_ekf.STILLNESS_THRESHOLD_ACC);
+
+    if (now_stationary) {
+        g_ekf.vx = 0.0f;
+        g_ekf.vy = 0.0f;
+        if (!g_ekf.is_stationary) {
+            LOGI("ZUPT: Détection d'arrêt. Vitesse réinitialisée.");
+        }
+    }
+    g_ekf.is_stationary = now_stationary;
+}
+
+/**
+ * Phase de Prédiction EKF (100Hz)
+ * Justification : Assure un mouvement fluide à 100 FPS entre les calculs IA.
  */
 void ekfPredict(long long timestamp_ns) {
     if (g_ekf.last_timestamp_ns == 0) {
@@ -88,28 +134,41 @@ void ekfPredict(long long timestamp_ns) {
         return;
     }
 
-    g_ekf.x += g_ekf.vx * dt;
-    g_ekf.y += g_ekf.vy * dt;
-    g_ekf.P += g_ekf.Q * dt;
+    if (!g_ekf.is_stationary) {
+        g_ekf.x += g_ekf.vx * dt;
+        g_ekf.y += g_ekf.vy * dt;
+        g_ekf.P += g_ekf.Q * dt;
+    } else {
+        // Réduction de l'incertitude si immobile
+        g_ekf.P *= 0.99f;
+    }
 
     g_ekf.last_timestamp_ns = timestamp_ns;
 }
 
 /**
- * Lionel : Correction via IA (RoNIN)
+ * Phase de Correction EKF (Sortie IA)
+ * Justification : Recalibre la position et la vitesse selon le modèle RoNIN.
  */
 void ekfUpdate(float dx_ia, float dy_ia) {
+    applyPhysicalConstraints(dx_ia, dy_ia);
+
     float K = g_ekf.P / (g_ekf.P + g_ekf.R);
     g_ekf.x += K * dx_ia;
     g_ekf.y += K * dy_ia;
-    g_ekf.vx = dx_ia / 0.1f;
-    g_ekf.vy = dy_ia / 0.1f;
+
+    if (std::abs(dx_ia) > 0.01f || std::abs(dy_ia) > 0.01f) {
+        g_ekf.vx = dx_ia / 0.1f;
+        g_ekf.vy = dy_ia / 0.1f;
+        g_ekf.is_stationary = false;
+    }
+
     g_ekf.P = (1.0f - K) * g_ekf.P;
 }
 
 /**
- * Semaine 5 : Calcul de l'altitude relative
- * h = 44330 * (1 - (P/P0)^(1/5.255))
+ * Calcul de l'Altitude (Baromètre)
+ * Justification : Permet la localisation multi-étages via la pression atmosphérique.
  */
 void updateAltitude(float pressure) {
     if (g_ekf.reference_pressure < 0) {
@@ -117,17 +176,12 @@ void updateAltitude(float pressure) {
         g_ekf.z = 0.0f;
         return;
     }
-
-    // Calcul de l'altitude relative en mètres
     float altitude = 44330.0f * (1.0f - pow(pressure / g_ekf.reference_pressure, 0.1903f));
-
-    // Lissage simple pour le Z (Filtre passe-bas)
     g_ekf.z = 0.9f * g_ekf.z + 0.1f * altitude;
 }
 
 void runInference() {
     if (!interpreter) return;
-
     float* input_tensor = interpreter->typed_input_tensor<float>(0);
     if (!input_tensor) return;
 
@@ -149,9 +203,7 @@ void runInference() {
 
     float* output_tensor = interpreter->typed_output_tensor<float>(0);
     if (output_tensor) {
-        float dx = output_tensor[0];
-        float dy = output_tensor[1];
-        ekfUpdate(dx, dy);
+        ekfUpdate(output_tensor[0], output_tensor[1]);
         trajectory_history.push_back({g_ekf.x, g_ekf.y, g_ekf.z});
     }
 }
@@ -168,6 +220,7 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_resetPositionNative(JNIEnv* 
     g_ekf.vx = 0.0f; g_ekf.vy = 0.0f;
     g_ekf.P = 1.0f; g_ekf.last_timestamp_ns = 0;
     g_ekf.reference_pressure = -1.0f;
+    g_ekf.is_stationary = true;
     trajectory_history.clear();
 }
 
@@ -202,13 +255,17 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_processAccelerometer(
         JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong timestamp) {
-    ekfPredict(timestamp);
     filtered_acc[0] = ALPHA_IMU * x + (1.0f - ALPHA_IMU) * filtered_acc[0];
     filtered_acc[1] = ALPHA_IMU * y + (1.0f - ALPHA_IMU) * filtered_acc[1];
     filtered_acc[2] = ALPHA_IMU * z + (1.0f - ALPHA_IMU) * filtered_acc[2];
+
+    checkStillness();
+    ekfPredict(timestamp);
+
     imu_buffer[buffer_index].acc[0] = filtered_acc[0];
     imu_buffer[buffer_index].acc[1] = filtered_acc[1];
     imu_buffer[buffer_index].acc[2] = filtered_acc[2];
+
     sendPositionToSonia(g_ekf.x, g_ekf.y, g_ekf.z);
 }
 
@@ -227,9 +284,11 @@ Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(
     filtered_gyro[0] = ALPHA_IMU * x + (1.0f - ALPHA_IMU) * filtered_gyro[0];
     filtered_gyro[1] = ALPHA_IMU * y + (1.0f - ALPHA_IMU) * filtered_gyro[1];
     filtered_gyro[2] = ALPHA_IMU * z + (1.0f - ALPHA_IMU) * filtered_gyro[2];
+
     imu_buffer[buffer_index].gyro[0] = filtered_gyro[0];
     imu_buffer[buffer_index].gyro[1] = filtered_gyro[1];
     imu_buffer[buffer_index].gyro[2] = filtered_gyro[2];
+
     buffer_index = (buffer_index + 1) % WINDOW_SIZE;
     if (buffer_index % 10 == 0) runInference();
 }
