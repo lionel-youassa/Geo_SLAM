@@ -20,13 +20,10 @@
 std::unique_ptr<tflite::Interpreter> interpreter;
 std::unique_ptr<tflite::FlatBufferModel> model;
 
-// --- Structure EKF Améliorée (Semaine 5 : Altitude & ZUPT) ---
+// --- Structure EKF Améliorée (Lionel - Version Finale) ---
 struct EKFState {
-    float x = 0.0f;
-    float y = 0.0f;
-    float z = 0.0f;
-    float vx = 0.0f;
-    float vy = 0.0f;
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+    float vx = 0.0f, vy = 0.0f;
     float P = 1.0f;
     long long last_timestamp_ns = 0;
 
@@ -35,19 +32,23 @@ struct EKFState {
 
     // ZUPT (Zero Velocity Update)
     bool is_stationary = true;
-    const float STILLNESS_THRESHOLD_GYRO = 0.05f; // rad/s
-    const float STILLNESS_THRESHOLD_ACC = 0.2f;   // m/s^2 (écart à la gravité)
+    const float STILLNESS_THRESHOLD_GYRO = 0.05f;
+    const float STILLNESS_THRESHOLD_ACC = 0.2f;
+
+    // Calibration
+    bool is_calibrated = false;
+    int calib_samples_count = 0;
+    const int SAMPLES_FOR_CALIB = 200;
+    float acc_bias[3] = {0.0f, 0.0f, 0.0f};
+    float gyro_bias[3] = {0.0f, 0.0f, 0.0f};
+    float sum_acc[3] = {0.0f, 0.0f, 0.0f};
+    float sum_gyro[3] = {0.0f, 0.0f, 0.0f};
 
     const float R = 0.5f;
     const float Q = 0.01f;
 };
 
 static EKFState g_ekf;
-
-// --- Semaine 3 : Contraintes Physiques ---
-const float MAX_STEP_LIMIT = 2.0f;
-
-// Stockage IMU & Historique
 static float filtered_acc[3] = {0.0f}, filtered_gyro[3] = {0.0f};
 const float ALPHA_IMU = 0.8f;
 
@@ -79,216 +80,136 @@ void sendPositionToSonia(float x, float y, float z) {
 }
 
 /**
- * Lionel : Détection d'incohérence physique
- * Justification : Élimine les sauts de position impossibles physiquement.
+ * Transformation Body-to-World via Quaternion
  */
-void applyPhysicalConstraints(float& dx, float& dy) {
-    float step_dist = std::sqrt(dx * dx + dy * dy);
-    if (step_dist > MAX_STEP_LIMIT) {
-        LOGE("Incohérence physique détectée : déplacement de %.2fm ignoré.", step_dist);
-        dx = 0.0f;
-        dy = 0.0f;
-    }
+void rotateVectorByQuaternion(float dx, float dy, const float q[4], float& outX, float& outY) {
+    // Calcul du Yaw (Lacet) : q = [x, y, z, w]
+    float siny_cosp = 2.0f * (q[3] * q[2] + q[0] * q[1]);
+    float cosy_cosp = 1.0f - 2.0f * (q[1] * q[1] + q[2] * q[2]);
+    float yaw = std::atan2(siny_cosp, cosy_cosp);
+
+    outX = dx * std::cos(yaw) - dy * std::sin(yaw);
+    outY = dx * std::sin(yaw) + dy * std::cos(yaw);
 }
 
-/**
- * Lionel : Détection de l'immobilité (ZUPT)
- * Justification : Arrête la dérive (drift) quand le capteur est stable.
- */
 void checkStillness() {
-    float gyro_mag = std::sqrt(filtered_gyro[0]*filtered_gyro[0] +
-                               filtered_gyro[1]*filtered_gyro[1] +
-                               filtered_gyro[2]*filtered_gyro[2]);
-
-    float acc_mag = std::sqrt(filtered_acc[0]*filtered_acc[0] +
-                              filtered_acc[1]*filtered_acc[1] +
-                              filtered_acc[2]*filtered_acc[2]);
+    float gyro_mag = std::sqrt(filtered_gyro[0]*filtered_gyro[0] + filtered_gyro[1]*filtered_gyro[1] + filtered_gyro[2]*filtered_gyro[2]);
+    float acc_mag = std::sqrt(filtered_acc[0]*filtered_acc[0] + filtered_acc[1]*filtered_acc[1] + filtered_acc[2]*filtered_acc[2]);
     float acc_diff = std::abs(acc_mag - 9.81f);
-
-    bool now_stationary = (gyro_mag < g_ekf.STILLNESS_THRESHOLD_GYRO &&
-                           acc_diff < g_ekf.STILLNESS_THRESHOLD_ACC);
-
-    if (now_stationary) {
-        g_ekf.vx = 0.0f;
-        g_ekf.vy = 0.0f;
-        if (!g_ekf.is_stationary) {
-            LOGI("ZUPT: Détection d'arrêt. Vitesse réinitialisée.");
-        }
-    }
-    g_ekf.is_stationary = now_stationary;
+    g_ekf.is_stationary = (gyro_mag < g_ekf.STILLNESS_THRESHOLD_GYRO && acc_diff < g_ekf.STILLNESS_THRESHOLD_ACC);
+    if (g_ekf.is_stationary) { g_ekf.vx = 0; g_ekf.vy = 0; }
 }
 
-/**
- * Phase de Prédiction EKF (100Hz)
- * Justification : Assure un mouvement fluide à 100 FPS entre les calculs IA.
- */
 void ekfPredict(long long timestamp_ns) {
-    if (g_ekf.last_timestamp_ns == 0) {
-        g_ekf.last_timestamp_ns = timestamp_ns;
-        return;
-    }
-
-    float dt = (timestamp_ns - g_ekf.last_timestamp_ns) / 1000000000.0f;
-    if (dt <= 0 || dt > 0.1) {
-        g_ekf.last_timestamp_ns = timestamp_ns;
-        return;
-    }
-
-    if (!g_ekf.is_stationary) {
+    if (g_ekf.last_timestamp_ns == 0) { g_ekf.last_timestamp_ns = timestamp_ns; return; }
+    float dt = (timestamp_ns - g_ekf.last_timestamp_ns) / 1e9f;
+    if (dt > 0 && dt < 0.1 && !g_ekf.is_stationary) {
         g_ekf.x += g_ekf.vx * dt;
         g_ekf.y += g_ekf.vy * dt;
         g_ekf.P += g_ekf.Q * dt;
-    } else {
-        // Réduction de l'incertitude si immobile
-        g_ekf.P *= 0.99f;
     }
-
     g_ekf.last_timestamp_ns = timestamp_ns;
 }
 
-/**
- * Phase de Correction EKF (Sortie IA)
- * Justification : Recalibre la position et la vitesse selon le modèle RoNIN.
- */
-void ekfUpdate(float dx_ia, float dy_ia) {
-    applyPhysicalConstraints(dx_ia, dy_ia);
-
+void ekfUpdate(float dx_world, float dy_world) {
     float K = g_ekf.P / (g_ekf.P + g_ekf.R);
-    g_ekf.x += K * dx_ia;
-    g_ekf.y += K * dy_ia;
-
-    if (std::abs(dx_ia) > 0.01f || std::abs(dy_ia) > 0.01f) {
-        g_ekf.vx = dx_ia / 0.1f;
-        g_ekf.vy = dy_ia / 0.1f;
+    g_ekf.x += K * dx_world;
+    g_ekf.y += K * dy_world;
+    if (std::abs(dx_world) > 0.01f) {
+        g_ekf.vx = dx_world / 0.1f;
+        g_ekf.vy = dy_world / 0.1f;
         g_ekf.is_stationary = false;
     }
-
     g_ekf.P = (1.0f - K) * g_ekf.P;
 }
 
-/**
- * Calcul de l'Altitude (Baromètre)
- * Justification : Permet la localisation multi-étages via la pression atmosphérique.
- */
 void updateAltitude(float pressure) {
-    if (g_ekf.reference_pressure < 0) {
-        g_ekf.reference_pressure = pressure;
-        g_ekf.z = 0.0f;
-        return;
-    }
+    if (g_ekf.reference_pressure < 0) { g_ekf.reference_pressure = pressure; return; }
     float altitude = 44330.0f * (1.0f - pow(pressure / g_ekf.reference_pressure, 0.1903f));
     g_ekf.z = 0.9f * g_ekf.z + 0.1f * altitude;
 }
 
 void runInference() {
-    if (!interpreter) return;
-    float* input_tensor = interpreter->typed_input_tensor<float>(0);
-    if (!input_tensor) return;
-
+    if (!g_ekf.is_calibrated || !interpreter) return;
+    float* input = interpreter->typed_input_tensor<float>(0);
     for (int i = 0; i < WINDOW_SIZE; ++i) {
         int idx = (buffer_index + i) % WINDOW_SIZE;
-        input_tensor[i * 10 + 0] = imu_buffer[idx].acc[2];
-        input_tensor[i * 10 + 1] = imu_buffer[idx].acc[1];
-        input_tensor[i * 10 + 2] = imu_buffer[idx].acc[0];
-        input_tensor[i * 10 + 3] = imu_buffer[idx].gyro[2];
-        input_tensor[i * 10 + 4] = imu_buffer[idx].gyro[1];
-        input_tensor[i * 10 + 5] = imu_buffer[idx].gyro[0];
-        input_tensor[i * 10 + 6] = imu_buffer[idx].ori[2];
-        input_tensor[i * 10 + 7] = imu_buffer[idx].ori[1];
-        input_tensor[i * 10 + 8] = imu_buffer[idx].ori[0];
-        input_tensor[i * 10 + 9] = imu_buffer[idx].ori[3];
+        for(int j=0; j<3; j++) input[i*10+j] = imu_buffer[idx].acc[j];
+        for(int j=0; j<3; j++) input[i*10+3+j] = imu_buffer[idx].gyro[j];
+        for(int j=0; j<4; j++) input[i*10+6+j] = imu_buffer[idx].ori[j];
     }
-
     if (interpreter->Invoke() != kTfLiteOk) return;
-
-    float* output_tensor = interpreter->typed_output_tensor<float>(0);
-    if (output_tensor) {
-        ekfUpdate(output_tensor[0], output_tensor[1]);
-        trajectory_history.push_back({g_ekf.x, g_ekf.y, g_ekf.z});
-    }
+    float* output = interpreter->typed_output_tensor<float>(0);
+    float dx_world, dy_world;
+    int last_idx = (buffer_index + WINDOW_SIZE - 1) % WINDOW_SIZE;
+    rotateVectorByQuaternion(output[0], output[1], imu_buffer[last_idx].ori, dx_world, dy_world);
+    ekfUpdate(dx_world, dy_world);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_geo_1slam_footslam_FootSlamManager_processPressure(
-        JNIEnv* env, jobject thiz, jfloat pressure, jlong timestamp) {
-    updateAltitude(pressure);
+Java_com_example_geo_1slam_footslam_FootSlamManager_processPressure(JNIEnv* env, jobject thiz, jfloat p, jlong ts) {
+    updateAltitude(p);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_geo_1slam_footslam_FootSlamManager_resetPositionNative(JNIEnv* env, jobject thiz) {
-    g_ekf.x = 0.0f; g_ekf.y = 0.0f; g_ekf.z = 0.0f;
-    g_ekf.vx = 0.0f; g_ekf.vy = 0.0f;
-    g_ekf.P = 1.0f; g_ekf.last_timestamp_ns = 0;
-    g_ekf.reference_pressure = -1.0f;
-    g_ekf.is_stationary = true;
+    g_ekf.x = 0; g_ekf.y = 0; g_ekf.z = 0; g_ekf.vx = 0; g_ekf.vy = 0;
+    g_ekf.P = 1.0f; g_ekf.last_timestamp_ns = 0; g_ekf.reference_pressure = -1.0f;
+    g_ekf.is_stationary = true; g_ekf.is_calibrated = false; g_ekf.calib_samples_count = 0;
     trajectory_history.clear();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(
-        JNIEnv* env, jobject thiz, jobject asset_manager, jstring model_path) {
-
-    if (g_manager_obj != nullptr) env->DeleteGlobalRef(g_manager_obj);
+Java_com_example_geo_1slam_footslam_FootSlamManager_loadModelNative(JNIEnv* env, jobject thiz, jobject am, jstring path) {
+    if (g_manager_obj) env->DeleteGlobalRef(g_manager_obj);
     g_manager_obj = env->NewGlobalRef(thiz);
-    jclass clazz = env->GetObjectClass(thiz);
-    g_callback_mid = env->GetMethodID(clazz, "onPositionCalculated", "(FFF)V");
-
-    const char* path = env->GetStringUTFChars(model_path, nullptr);
-    AAssetManager* mgr = AAssetManager_fromJava(env, asset_manager);
-    AAsset* asset = AAssetManager_open(mgr, path, AASSET_MODE_BUFFER);
+    g_callback_mid = env->GetMethodID(env->GetObjectClass(thiz), "onPositionCalculated", "(FFF)V");
+    const char* p = env->GetStringUTFChars(path, nullptr);
+    AAsset* asset = AAssetManager_open(AAssetManager_fromJava(env, am), p, AASSET_MODE_BUFFER);
     if (!asset) return JNI_FALSE;
-
-    size_t model_size = AAsset_getLength(asset);
-    std::vector<char> model_buffer(model_size);
-    AAsset_read(asset, model_buffer.data(), model_size);
+    size_t size = AAsset_getLength(asset);
+    std::vector<char> buf(size);
+    AAsset_read(asset, buf.data(), size);
     AAsset_close(asset);
-
-    model = tflite::FlatBufferModel::BuildFromBuffer(model_buffer.data(), model_size);
-    tflite::ops::builtin::BuiltinOpResolver resolver;
-    tflite::InterpreterBuilder(*model, resolver)(&interpreter);
+    model = tflite::FlatBufferModel::BuildFromBuffer(buf.data(), size);
+    tflite::ops::builtin::BuiltinOpResolver res;
+    tflite::InterpreterBuilder(*model, res)(&interpreter);
     interpreter->AllocateTensors();
-
-    env->ReleaseStringUTFChars(model_path, path);
+    env->ReleaseStringUTFChars(path, p);
     return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_geo_1slam_footslam_FootSlamManager_processAccelerometer(
-        JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong timestamp) {
-    filtered_acc[0] = ALPHA_IMU * x + (1.0f - ALPHA_IMU) * filtered_acc[0];
-    filtered_acc[1] = ALPHA_IMU * y + (1.0f - ALPHA_IMU) * filtered_acc[1];
-    filtered_acc[2] = ALPHA_IMU * z + (1.0f - ALPHA_IMU) * filtered_acc[2];
-
+Java_com_example_geo_1slam_footslam_FootSlamManager_processAccelerometer(JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong ts) {
+    if (!g_ekf.is_calibrated) { g_ekf.sum_acc[0]+=x; g_ekf.sum_acc[1]+=y; g_ekf.sum_acc[2]+=(z-9.81f); return; }
+    filtered_acc[0] = ALPHA_IMU*(x-g_ekf.acc_bias[0]) + (1-ALPHA_IMU)*filtered_acc[0];
+    filtered_acc[1] = ALPHA_IMU*(y-g_ekf.acc_bias[1]) + (1-ALPHA_IMU)*filtered_acc[1];
+    filtered_acc[2] = ALPHA_IMU*(z-g_ekf.acc_bias[2]) + (1-ALPHA_IMU)*filtered_acc[2];
     checkStillness();
-    ekfPredict(timestamp);
-
-    imu_buffer[buffer_index].acc[0] = filtered_acc[0];
-    imu_buffer[buffer_index].acc[1] = filtered_acc[1];
-    imu_buffer[buffer_index].acc[2] = filtered_acc[2];
-
+    ekfPredict(ts);
+    imu_buffer[buffer_index].acc[0]=filtered_acc[0]; imu_buffer[buffer_index].acc[1]=filtered_acc[1]; imu_buffer[buffer_index].acc[2]=filtered_acc[2];
     sendPositionToSonia(g_ekf.x, g_ekf.y, g_ekf.z);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_geo_1slam_footslam_FootSlamManager_processOrientation(
-        JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jfloat w, jlong timestamp) {
-    imu_buffer[buffer_index].ori[0] = x;
-    imu_buffer[buffer_index].ori[1] = y;
-    imu_buffer[buffer_index].ori[2] = z;
-    imu_buffer[buffer_index].ori[3] = w;
+Java_com_example_geo_1slam_footslam_FootSlamManager_processOrientation(JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jfloat w, jlong ts) {
+    imu_buffer[buffer_index].ori[0]=x; imu_buffer[buffer_index].ori[1]=y; imu_buffer[buffer_index].ori[2]=z; imu_buffer[buffer_index].ori[3]=w;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(
-        JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong timestamp) {
-    filtered_gyro[0] = ALPHA_IMU * x + (1.0f - ALPHA_IMU) * filtered_gyro[0];
-    filtered_gyro[1] = ALPHA_IMU * y + (1.0f - ALPHA_IMU) * filtered_gyro[1];
-    filtered_gyro[2] = ALPHA_IMU * z + (1.0f - ALPHA_IMU) * filtered_gyro[2];
-
-    imu_buffer[buffer_index].gyro[0] = filtered_gyro[0];
-    imu_buffer[buffer_index].gyro[1] = filtered_gyro[1];
-    imu_buffer[buffer_index].gyro[2] = filtered_gyro[2];
-
+Java_com_example_geo_1slam_footslam_FootSlamManager_processGyroscope(JNIEnv* env, jobject thiz, jfloat x, jfloat y, jfloat z, jlong ts) {
+    if (!g_ekf.is_calibrated) {
+        g_ekf.sum_gyro[0]+=x; g_ekf.sum_gyro[1]+=y; g_ekf.sum_gyro[2]+=z; g_ekf.calib_samples_count++;
+        if (g_ekf.calib_samples_count >= 200) {
+            for(int i=0; i<3; i++) { g_ekf.acc_bias[i]=g_ekf.sum_acc[i]/200; g_ekf.gyro_bias[i]=g_ekf.sum_gyro[i]/200; }
+            g_ekf.is_calibrated = true;
+        }
+        return;
+    }
+    filtered_gyro[0]=ALPHA_IMU*(x-g_ekf.gyro_bias[0])+(1-ALPHA_IMU)*filtered_gyro[0];
+    filtered_gyro[1]=ALPHA_IMU*(y-g_ekf.gyro_bias[1])+(1-ALPHA_IMU)*filtered_gyro[1];
+    filtered_gyro[2]=ALPHA_IMU*(z-g_ekf.gyro_bias[2])+(1-ALPHA_IMU)*filtered_gyro[2];
+    imu_buffer[buffer_index].gyro[0]=filtered_gyro[0]; imu_buffer[buffer_index].gyro[1]=filtered_gyro[1]; imu_buffer[buffer_index].gyro[2]=filtered_gyro[2];
     buffer_index = (buffer_index + 1) % WINDOW_SIZE;
     if (buffer_index % 10 == 0) runInference();
 }
