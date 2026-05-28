@@ -48,6 +48,7 @@ android {
     buildFeatures {
         viewBinding = true
         prefab = true 
+        buildConfig = true
     }
     @Suppress("UnstableApiUsage")
     androidResources {
@@ -60,6 +61,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
+    implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
+    implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
     
     // TensorFlow Lite (Lionel : Module IA)
     implementation("org.tensorflow:tensorflow-lite:2.14.0")

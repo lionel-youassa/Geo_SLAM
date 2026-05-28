@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 project("geo_slam")
 
 # Activation de Prefab pour lier les bibliothèques Gradle (TFLite)
-find_package(tensorflow-lite REQUIRED CONFIG)
+# find_package(tensorflow-lite REQUIRED CONFIG)
 
 # Inclusion des répertoires d'en-tête
 include_directories(
@@ -26,5 +26,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     log
     jnigraphics
     # TensorFlow Lite (Lionel : Ton module IA)
-    tensorflow::tensorflow-lite
+    # tensorflow::tensorflow-lite
 )

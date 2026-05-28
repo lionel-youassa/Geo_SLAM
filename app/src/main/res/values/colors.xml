@@ -7,4 +7,38 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Material You — Light -->
+    <color name="md_primary">#534AB7</color>
+    <color name="md_on_primary">#FFFFFF</color>
+    <color name="md_primary_container">#EEEDFE</color>
+    <color name="md_on_primary_container">#3C3489</color>
+    <color name="md_surface_variant">#F1EFE8</color>
+
+    <!-- Secondary palette -->
+    <color name="md_secondary">#008080</color>
+    <color name="md_on_secondary">#FFFFFF</color>
+    <color name="md_secondary_container">#C8F0EE</color>
+    <color name="md_on_secondary_container">#005050</color>
+
+    <!-- Material You — Dark -->
+    <color name="md_primary_dark">#AFA9EC</color>
+    <color name="md_on_primary_dark">#26215C</color>
+    <color name="md_primary_container_dark">#3C3489</color>
+    <color name="md_on_primary_container_dark">#EEEDFE</color>
+    <color name="md_surface_variant_dark">#444441</color>
+
+    <!-- Statuts capteurs -->
+    <color name="status_ok">#1D9E75</color>
+    <color name="status_loading">#EF9F27</color>
+    <color name="status_error">#E24B4A</color>
+    <color name="status_pending">#888780</color>
+
+    <!-- Statuts containers (fond des pills) -->
+    <color name="status_ok_container">#E1F5EE</color>
+    <color name="status_loading_container">#FAEEDA</color>
+    <color name="status_error_container">#FCEBEB</color>
+    <color name="status_pending_container">#F1EFE8</color>
+
+    <color name="map_background">#EEF0E8</color>
 </resources>
