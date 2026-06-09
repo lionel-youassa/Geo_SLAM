@@ -81,6 +81,23 @@ class FootSlamManager(context: Context) : SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+    fun onSensorDataReceived(sensorType: Int, values: FloatArray, timestamp: Long) {
+        when (sensorType) {
+            Sensor.TYPE_ACCELEROMETER -> {
+                processAccelerometer(values[0], values[1], values[2], timestamp)
+            }
+            Sensor.TYPE_GYROSCOPE -> {
+                processGyroscope(values[0], values[1], values[2], timestamp)
+            }
+            Sensor.TYPE_ROTATION_VECTOR -> {
+                processOrientation(values[0], values[1], values[2], values[3], timestamp)
+            }
+            Sensor.TYPE_PRESSURE -> {
+                processPressure(values[0], timestamp)
+            }
+        }
+    }
+
     /**
      * Cette méthode sera appelée depuis le C++ (JNI) une fois que l'IA aura calculé la position.
      */
