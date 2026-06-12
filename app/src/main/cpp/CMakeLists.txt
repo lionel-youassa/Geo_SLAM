@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("geo_slam")
 
+# Force l'alignement des segments mémoire à 16 Ko pour la compatibilité Android 15+
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
+
 # Configuration des répertoires TFLite extraits manuellement
 set(TFLITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tflite)
 
@@ -19,9 +22,6 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 )
 
 # 3. Configuration des inclusions
-# On inclut le dossier tflite pour trouver "tensorflow/lite/..." et "flatbuffers/..."
-# ATTENTION : Ne pas inclure ${TFLITE_DIR}/flatbuffers directement pour éviter
-# les conflits de noms avec les headers standards (ex: string.h).
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${TFLITE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/footslam

@@ -34,14 +34,19 @@ class TrajectoryView @JvmOverloads constructor(
     private val trajectoryPath = Path()
     private var currentX = 0f
     private var currentY = 0f
+    private var currentZ = 0f
     private var isFirstPoint = true
     
     // Échelle : 100 pixels pour 1 mètre
     private val scale = 100f
 
-    fun updatePosition(x: Float, y: Float) {
+    /**
+     * Mise à jour avec prise en charge de l'altitude Z
+     */
+    fun updatePosition(x: Float, y: Float, z: Float) {
         currentX = x
         currentY = y
+        currentZ = z
         
         val centerX = width / 2f
         val centerY = height / 2f
@@ -63,6 +68,7 @@ class TrajectoryView @JvmOverloads constructor(
         isFirstPoint = true
         currentX = 0f
         currentY = 0f
+        currentZ = 0f
         invalidate()
     }
 
@@ -84,6 +90,21 @@ class TrajectoryView @JvmOverloads constructor(
         // Dessin de la position actuelle (Point rouge)
         val drawX = centerX + currentX * scale
         val drawY = centerY - currentY * scale
-        canvas.drawCircle(drawX, drawY, 12f, pointPaint)
+        
+        // VARIATION VISUELLE SELON Z :
+        // On fait varier le rayon du cercle entre 8f et 25f selon l'altitude
+        val radiusZ = 12f + (currentZ * 5f)
+        val finalRadius = radiusZ.coerceIn(5f, 30f)
+        
+        // Changement de couleur si on change d'étage (Z > 2m)
+        if (currentZ > 2.0f) {
+            pointPaint.color = Color.GREEN // Étage supérieur
+        } else if (currentZ < -1.0f) {
+            pointPaint.color = Color.YELLOW // Sous-sol
+        } else {
+            pointPaint.color = Color.RED // Rez-de-chaussée
+        }
+
+        canvas.drawCircle(drawX, drawY, finalRadius, pointPaint)
     }
 }

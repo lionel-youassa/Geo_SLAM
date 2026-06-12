@@ -21,7 +21,9 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags("-std=c++17")
-                arguments("-DANDROID_STL=c++_shared")
+                // Utilisation de c++_static pour régler le problème d'alignement de libc++_shared.so
+                // et forcer l'alignement 16 Ko pour libgeo_slam.so
+                arguments("-DANDROID_STL=c++_static", "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384")
             }
         }
     }
@@ -29,6 +31,13 @@ android {
     buildFeatures {
         viewBinding = true
         prefab = true
+    }
+
+    packaging {
+        jniLibs {
+            // Recommandé pour la compatibilité 16 Ko sur certains builds AGP
+            useLegacyPackaging = true
+        }
     }
 
     externalNativeBuild {
@@ -67,7 +76,6 @@ val extractTfliteAar by tasks.creating {
     doLast {
         if (!outputDir.exists()) outputDir.mkdirs()
         
-        // 1. Extraction des bibliothèques .so de l'AAR
         if (tempAarExtractDir.exists()) tempAarExtractDir.deleteRecursively()
         tempAarExtractDir.mkdirs()
         tfliteAar.resolvedConfiguration.resolvedArtifacts.forEach { artifact ->
@@ -87,7 +95,6 @@ val extractTfliteAar by tasks.creating {
             }
         }
 
-        // 2. Copie des headers depuis le dossier de secours tflite_headers_temp
         val manualHeadersSource = file("${project.rootDir}/tflite_headers_temp/tensorflow")
         if (manualHeadersSource.exists()) {
             println("--- Copie des headers TFLite depuis tflite_headers_temp ---")
@@ -99,7 +106,6 @@ val extractTfliteAar by tasks.creating {
             }
         }
 
-        // 3. Flatbuffers (FORCER v23.5.26 pour compatibilité TFLite)
         val fbOutputDir = file("$outputDir/flatbuffers")
         if (fbOutputDir.exists()) fbOutputDir.deleteRecursively()
         fbOutputDir.mkdirs()
