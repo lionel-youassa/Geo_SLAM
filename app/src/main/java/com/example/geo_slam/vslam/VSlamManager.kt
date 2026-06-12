@@ -8,15 +8,52 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
-import android.util.SizeF
 
 class VSlamManager(private val context: Context) {
+
+    // ── États du tracker ─────────────────────────────────────────────────────
+
+    enum class TrackingState(val value: Int) {
+        INIT(0), INITIALIZING(1), TRACKING(2), RECENTLY_LOST(3), LOST(4);
+        companion object {
+            fun fromInt(v: Int) = entries.firstOrNull { it.value == v } ?: INIT
+        }
+    }
+
+    // ── Interfaces publiques ─────────────────────────────────────────────────
 
     interface OnFrameProcessedListener {
         fun onFrameProcessed(x: Float, y: Float, z: Float)
     }
 
+    interface OnPointCloudListener {
+        fun onPointCloudUpdated(points: FloatArray)
+    }
+
+    interface OnTrackingStateListener {
+        fun onTrackingStateChanged(state: TrackingState)
+    }
+
+    // ── Listeners ────────────────────────────────────────────────────────────
+
     private var frameListener: OnFrameProcessedListener? = null
+    private var cloudListener: OnPointCloudListener? = null
+    private var stateListener: OnTrackingStateListener? = null
+    private var lastState = TrackingState.INIT
+
+    fun setOnFrameProcessedListener(listener: OnFrameProcessedListener) {
+        frameListener = listener
+    }
+
+    fun setOnPointCloudListener(listener: OnPointCloudListener) {
+        cloudListener = listener
+    }
+
+    fun setOnTrackingStateListener(listener: OnTrackingStateListener) {
+        stateListener = listener
+    }
+
+    // ── Camera2 ──────────────────────────────────────────────────────────────
 
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private var cameraDevice: CameraDevice? = null
@@ -28,10 +65,6 @@ class VSlamManager(private val context: Context) {
 
     private val targetSize = Size(640, 480)
 
-    fun setOnFrameProcessedListener(listener: OnFrameProcessedListener) {
-        frameListener = listener
-    }
-
     fun startCamera(cameraId: String? = null) {
         val resolvedId = cameraId ?: run {
             val id = getBackCameraId()
@@ -42,25 +75,20 @@ class VSlamManager(private val context: Context) {
             id
         }
 
-        // Calcul des intrinsèques réelles depuis les métadonnées Camera2
         val (fx, fy, cx, cy) = computeIntrinsics(resolvedId)
         Log.i(TAG, "Intrinsèques — fx=${"%.1f".format(fx)} fy=${"%.1f".format(fy)} cx=${"%.1f".format(cx)} cy=${"%.1f".format(cy)}")
         setCameraIntrinsics(fx, fy, cx, cy)
 
-        Log.i(TAG, "Ouverture caméra $resolvedId — ${targetSize.width}x${targetSize.height}.")
-
         imageReader = ImageReader.newInstance(
-            targetSize.width, targetSize.height,
-            ImageFormat.YUV_420_888,
-            2
+            targetSize.width, targetSize.height, ImageFormat.YUV_420_888, 2
         ).apply {
             setOnImageAvailableListener({ reader ->
                 val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
-                    val plane = image.planes[0]
+                    val plane     = image.planes[0]
                     val rowStride = plane.rowStride
-                    val buffer = plane.buffer
-                    val bufSize = buffer.remaining()
+                    val buffer    = plane.buffer
+                    val bufSize   = buffer.remaining()
                     if (bufSize == 0) return@setOnImageAvailableListener
                     val frameBytes = ByteArray(bufSize)
                     buffer.get(frameBytes)
@@ -76,7 +104,6 @@ class VSlamManager(private val context: Context) {
         try {
             cameraManager.openCamera(resolvedId, object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
-                    Log.i(TAG, "Caméra ouverte.")
                     cameraDevice = camera
                     createCaptureSession()
                 }
@@ -90,48 +117,78 @@ class VSlamManager(private val context: Context) {
                 }
             }, cameraHandler)
         } catch (e: SecurityException) {
-            Log.e(TAG, "Permission CAMERA manquante : ${e.message}")
+            Log.e(TAG, "Permission CAMERA manquante.")
         } catch (e: Exception) {
             Log.e(TAG, "Erreur openCamera : ${e.message}")
         }
     }
 
+    fun stopCamera() {
+        captureSession?.close(); captureSession = null
+        cameraDevice?.close();   cameraDevice = null
+        imageReader?.close();    imageReader = null
+        // nativeRelease() posté sur cameraHandler pour s'exécuter après tout processFrame en cours
+        cameraHandler.post { nativeRelease() }
+        Log.i(TAG, "Caméra arrêtée.")
+    }
+
+    // ── API publique pour l'équipe ────────────────────────────────────────────
+
     /**
-     * Dérive fx, fy, cx, cy à partir de LENS_INFO_AVAILABLE_FOCAL_LENGTHS et
-     * SENSOR_INFO_PHYSICAL_SIZE, ramenés à la résolution 640×480.
+     * Réinitialise le tracking vSLAM (pose, keyframes, trajectoire, échelle).
+     * À appeler depuis MainActivity sur le bouton Reset.
      */
+    fun reset() = resetTracking()
+
+    /**
+     * Transmet le déplacement FootSLAM pour calibrer l'échelle monoculaire.
+     * À appeler depuis MainActivity dans onPositionUpdate avec (x-prevX, y-prevY, z-prevZ).
+     */
+    external fun updateFootSlamDisplacement(dx: Float, dy: Float, dz: Float)
+
+    // ── Callbacks C++ → Kotlin ───────────────────────────────────────────────
+
+    // Appelé depuis processFrame() C++ après chaque frame traitée
+    private fun onPoseEstimated(x: Float, y: Float, z: Float) {
+        frameListener?.onFrameProcessed(x, y, z)
+        val current = TrackingState.fromInt(getTrackingState())
+        if (current != lastState) {
+            lastState = current
+            currentTrackingState = current.name   // visible depuis StatusViewModel
+            stateListener?.onTrackingStateChanged(current)
+        }
+    }
+
+    // Appelé depuis processFrame() C++ tous les 5 keyframes — envoie les MapPoints 3D
+    private fun onPointCloudUpdated(points: FloatArray) {
+        cloudListener?.onPointCloudUpdated(points)
+    }
+
+    // ── Intrinsèques ─────────────────────────────────────────────────────────
+
     private fun computeIntrinsics(cameraId: String): List<Double> {
-        val chars = cameraManager.getCameraCharacteristics(cameraId)
+        val chars       = cameraManager.getCameraCharacteristics(cameraId)
+        val sensorSize  = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+        val sensorPx    = chars.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
+        val focalMm     = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
 
-        // Taille physique du capteur (mm)
-        val sensorSize: SizeF? = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-        // Résolution native maximale du capteur (pixels)
-        val sensorPixels: android.util.Size? = chars.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
-        // Longueur focale (mm)
-        val focalMm = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
-
-        if (sensorSize != null && sensorPixels != null && focalMm != null) {
-            // Pixels par mm dans la résolution native
-            val pxPerMmX = sensorPixels.width  / sensorSize.width
-            val pxPerMmY = sensorPixels.height / sensorSize.height
-            // Focale en pixels (résolution native)
-            val fxNative = focalMm * pxPerMmX
-            val fyNative = focalMm * pxPerMmY
-            // Mise à l'échelle vers 640×480
-            val scaleX = targetSize.width.toDouble()  / sensorPixels.width
-            val scaleY = targetSize.height.toDouble() / sensorPixels.height
+        if (sensorSize != null && sensorPx != null && focalMm != null) {
+            val pxPerMmX = sensorPx.width  / sensorSize.width
+            val pxPerMmY = sensorPx.height / sensorSize.height
+            val scaleX   = targetSize.width.toDouble()  / sensorPx.width
+            val scaleY   = targetSize.height.toDouble() / sensorPx.height
             return listOf(
-                fxNative * scaleX,
-                fyNative * scaleY,
+                focalMm * pxPerMmX * scaleX,
+                focalMm * pxPerMmY * scaleY,
                 targetSize.width  / 2.0,
                 targetSize.height / 2.0
             )
         }
-
-        // Fallback raisonnable si les métadonnées sont absentes
         Log.w(TAG, "Métadonnées capteur absentes — intrinsèques approchées.")
         return listOf(500.0, 500.0, 320.0, 240.0)
     }
+
+    // ── Session Camera2 ──────────────────────────────────────────────────────
 
     private fun createCaptureSession() {
         val surface = imageReader!!.surface
@@ -141,8 +198,7 @@ class VSlamManager(private val context: Context) {
                 override fun onConfigured(session: CameraCaptureSession) {
                     captureSession = session
                     val request = cameraDevice!!
-                        .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                        .apply {
+                        .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                             addTarget(surface)
                             set(CaptureRequest.CONTROL_AF_MODE,
                                 CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
@@ -158,36 +214,32 @@ class VSlamManager(private val context: Context) {
         )
     }
 
-    fun stopCamera() {
-        captureSession?.close(); captureSession = null
-        cameraDevice?.close();   cameraDevice = null
-        imageReader?.close();    imageReader = null
-        Log.i(TAG, "Caméra arrêtée.")
+    private fun getBackCameraId(): String? = cameraManager.cameraIdList.firstOrNull { id ->
+        cameraManager.getCameraCharacteristics(id)
+            .get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
     }
 
-    private fun getBackCameraId(): String? {
-        return cameraManager.cameraIdList.firstOrNull { id ->
-            cameraManager.getCameraCharacteristics(id)
-                .get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
-        }
-    }
-
-    // Appelé depuis le C++ après traitement vSLAM
-    private fun onPoseEstimated(x: Float, y: Float, z: Float) {
-        frameListener?.onFrameProcessed(x, y, z)
-    }
+    // ── JNI ──────────────────────────────────────────────────────────────────
 
     private external fun setCameraIntrinsics(fx: Double, fy: Double, cx: Double, cy: Double)
     private external fun processFrame(frameData: ByteArray, width: Int, height: Int, rowStride: Int)
+    private external fun resetTracking()
+    private external fun nativeRelease()
+    external fun getTrackingState(): Int
 
     companion object {
         private const val TAG = "GeoSlam_vSLAM"
+
+        // Lu par StatusViewModel (thread-safe lecture)
+        @Volatile
+        var currentTrackingState: String = "INIT"
+
         init {
             try {
                 System.loadLibrary("geo_slam")
-                android.util.Log.i(TAG, "libgeo_slam.so chargée avec succès.")
+                Log.i(TAG, "libgeo_slam.so chargée avec succès.")
             } catch (e: UnsatisfiedLinkError) {
-                android.util.Log.e(TAG, "Échec chargement libgeo_slam.so : ${e.message}")
+                Log.e(TAG, "Échec chargement libgeo_slam.so : ${e.message}")
             }
         }
     }

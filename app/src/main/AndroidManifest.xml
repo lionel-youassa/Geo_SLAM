@@ -15,7 +15,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Geo_slam">
+        android:theme="@style/Theme.GeoSLAM">
         <activity
             android:name=".MainActivity"
             android:exported="true">
