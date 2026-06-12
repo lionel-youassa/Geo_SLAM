@@ -11,14 +11,12 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity(), FootSlamManager.OnPositionUpdateListener {
 
-    private lateinit var binding: ActivityMainBinding
     private lateinit var footSlamManager: FootSlamManager
     private lateinit var mapRenderer: MapRenderer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_main)
 
         // Initialisation des modules
         footSlamManager = FootSlamManager(this)

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="menuFootSlam" type="id"/>
+    <item name="menuFusion"   type="id"/>
+    <item name="menuVSlam"    type="id"/>
+</resources>

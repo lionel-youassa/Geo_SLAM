@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurfaceVariant">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <!-- Centred content wrapper (max-width on tablets) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!-- Hero header — full-width gradient -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_header_rounded_bottom"
+                android:paddingLeft="@dimen/header_padding_horizontal"
+                android:paddingRight="@dimen/header_padding_horizontal"
+                android:paddingTop="@dimen/header_padding_top"
+                android:paddingBottom="@dimen/header_padding_bottom">
+
+                <!-- App icon badge -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/headerIcon"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#25FFFFFF"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="#30FFFFFF"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintStart_toStartOf="parent">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_geo_slam_logo"
+                        android:contentDescription="@null"
+                        app:tint="#FFFFFF"/>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Live status pill -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/statusPill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="99dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#20FFFFFF"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="#25FFFFFF"
+                    app:layout_constraintTop_toTopOf="@id/headerIcon"
+                    app:layout_constraintBottom_toBottomOf="@id/headerIcon"
+                    app:layout_constraintEnd_toEndOf="parent">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp">
+
+                        <View
+                            android:layout_width="7dp"
+                            android:layout_height="7dp"
+                            android:background="@drawable/bg_status_dot_green"
+                            android:layout_marginRight="6dp"/>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/refresh"
+                            android:textColor="#DDFFFFFF"
+                            android:textSize="12sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Main title -->
+                <TextView
+                    android:id="@+id/headerTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/status_title"
+                    android:textColor="#FFFFFF"
+                    android:textSize="@dimen/header_title_size"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.02"
+                    app:layout_constraintTop_toBottomOf="@id/headerIcon"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
+
+                <!-- Last refresh label -->
+                <TextView
+                    android:id="@+id/lastRefreshText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#99FFFFFF"
+                    android:textSize="13sp"
+                    app:layout_constraintTop_toBottomOf="@id/headerTitle"
+                    app:layout_constraintStart_toStartOf="parent"/>
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <!-- Content area — max-width centered -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:paddingTop="@dimen/content_padding_vertical"
+                android:paddingBottom="@dimen/content_padding_vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:maxWidth="@dimen/content_max_width"
+                    android:paddingLeft="@dimen/content_padding_horizontal"
+                    android:paddingRight="@dimen/content_padding_horizontal">
+
+                    <!-- Section label: Sensors -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/section_sensors"
+                        android:textAppearance="?attr/textAppearanceLabelSmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:letterSpacing="0.08"
+                        android:textAllCaps="true"/>
+
+                    <!-- Sensor items -->
+                    <LinearLayout
+                        android:id="@+id/sensorList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp"/>
+
+                    <!-- Section label: System -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/section_system"
+                        android:textAppearance="?attr/textAppearanceLabelSmall"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:letterSpacing="0.08"
+                        android:textAllCaps="true"/>
+
+                    <!-- Metrics row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="20dp">
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="@dimen/metric_card_margin"
+                            app:cardCornerRadius="@dimen/metric_card_corner_radius"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="?attr/colorSurface"
+                            app:strokeWidth="0dp">
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingTop="@dimen/metric_card_padding_v"
+                                android:paddingBottom="@dimen/metric_card_padding_v"
+                                android:paddingLeft="@dimen/metric_card_padding_h"
+                                android:paddingRight="@dimen/metric_card_padding_h"
+                                android:gravity="center">
+                                <TextView
+                                    android:id="@+id/batteryValue"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:textSize="@dimen/metric_value_size"
+                                    android:textStyle="bold"
+                                    android:textColor="?attr/colorPrimary"/>
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/metric_battery"
+                                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                                    android:textColor="?attr/colorOnSurfaceVariant"/>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="@dimen/metric_card_margin"
+                            android:layout_marginEnd="@dimen/metric_card_margin"
+                            app:cardCornerRadius="@dimen/metric_card_corner_radius"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="?attr/colorSurface"
+                            app:strokeWidth="0dp">
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingTop="@dimen/metric_card_padding_v"
+                                android:paddingBottom="@dimen/metric_card_padding_v"
+                                android:paddingLeft="@dimen/metric_card_padding_h"
+                                android:paddingRight="@dimen/metric_card_padding_h"
+                                android:gravity="center">
+                                <TextView
+                                    android:id="@+id/ramValue"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:textSize="@dimen/metric_value_size"
+                                    android:textStyle="bold"
+                                    android:textColor="?attr/colorPrimary"/>
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/metric_ram"
+                                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                                    android:textColor="?attr/colorOnSurfaceVariant"/>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="@dimen/metric_card_margin"
+                            app:cardCornerRadius="@dimen/metric_card_corner_radius"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="?attr/colorSurface"
+                            app:strokeWidth="0dp">
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingTop="@dimen/metric_card_padding_v"
+                                android:paddingBottom="@dimen/metric_card_padding_v"
+                                android:paddingLeft="@dimen/metric_card_padding_h"
+                                android:paddingRight="@dimen/metric_card_padding_h"
+                                android:gravity="center">
+                                <TextView
+                                    android:id="@+id/tempValue"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:textSize="@dimen/metric_value_size"
+                                    android:textStyle="bold"
+                                    android:textColor="?attr/colorPrimary"/>
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/metric_temp"
+                                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                                    android:textColor="?attr/colorOnSurfaceVariant"/>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                    </LinearLayout>
+
+                    <!-- Primary button -->
+
+                    <!-- Calibrate button -->
+                    <!-- <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCalibrate"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/btn_height_secondary"
+                        android:layout_marginBottom="8dp"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:text="@string/btn_calibrate"
+                        app:cornerRadius="@dimen/btn_corner_radius"
+                        app:icon="@drawable/ic_tune"
+                        app:iconGravity="textStart"/> -->
+
+                </LinearLayout>
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnStart"
+                android:layout_width="354dp"
+                android:layout_height="65dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/btn_start"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                app:cornerRadius="@dimen/btn_corner_radius" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurfaceVariant">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <!-- Centred content wrapper -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!-- ══════════ Hero Header ══════════ -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_header_rounded_bottom"
+                android:paddingLeft="@dimen/header_padding_horizontal"
+                android:paddingRight="@dimen/header_padding_horizontal"
+                android:paddingTop="@dimen/header_padding_top"
+                android:paddingBottom="@dimen/map_header_padding_bottom">
+
+                <!-- App icon badge -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/headerIcon"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#25FFFFFF"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="#30FFFFFF"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintStart_toStartOf="parent">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_map"
+                        android:contentDescription="@null"
+                        app:tint="#FFFFFF"/>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Live status pill -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/statusPill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="99dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#20FFFFFF"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="#25FFFFFF"
+                    app:layout_constraintTop_toTopOf="@id/headerIcon"
+                    app:layout_constraintBottom_toBottomOf="@id/headerIcon"
+                    app:layout_constraintEnd_toEndOf="parent">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp">
+
+                        <View
+                            android:layout_width="7dp"
+                            android:layout_height="7dp"
+                            android:background="@drawable/bg_status_dot_green"
+                            android:layout_marginRight="6dp"/>
+
+                        <TextView
+                            android:id="@+id/statusChipText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/status_running"
+                            android:textColor="#DDFFFFFF"
+                            android:textSize="12sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Main title -->
+                <TextView
+                    android:id="@+id/headerTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/map_title"
+                    android:textColor="#FFFFFF"
+                    android:textSize="@dimen/header_title_size"
+                    android:textStyle="bold"
+                    android:letterSpacing="-0.02"
+                    app:layout_constraintTop_toBottomOf="@id/headerIcon"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
+
+                <!-- Mode subtitle -->
+                <TextView
+                    android:id="@+id/headerSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/map_subtitle"
+                    android:textColor="#99FFFFFF"
+                    android:textSize="13sp"
+                    app:layout_constraintTop_toBottomOf="@id/headerTitle"
+                    app:layout_constraintStart_toStartOf="parent"/>
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <!-- ══════════ Content area — max-width centred ══════════ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:paddingTop="@dimen/content_padding_vertical"
+                android:paddingBottom="@dimen/map_bottom_padding">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:maxWidth="@dimen/map_max_width"
+                    android:paddingLeft="@dimen/content_padding_horizontal"
+                    android:paddingRight="@dimen/content_padding_horizontal">
+
+                    <!-- ── Mode toggle card ── -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/modeToggleCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/map_section_gap"
+                        app:cardCornerRadius="@dimen/map_toggle_corner_radius"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:strokeWidth="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="@dimen/map_toggle_padding">
+
+                            <!-- Section label -->
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="8dp"
+                                android:text="@string/section_mode"
+                                android:textAppearance="?attr/textAppearanceLabelSmall"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:letterSpacing="0.08"
+                                android:textAllCaps="true"/>
+
+                            <!-- Buttons row -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnModeFootSlam"
+                                    android:layout_width="0dp"
+                                    android:layout_height="@dimen/map_toggle_btn_height"
+                                    android:layout_weight="1"
+                                    android:layout_marginEnd="4dp"
+                                    android:text="@string/mode_foot"
+                                    android:textSize="@dimen/map_toggle_text_size"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    app:cornerRadius="@dimen/map_toggle_btn_radius"/>
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnModeFusion"
+                                    android:layout_width="0dp"
+                                    android:layout_height="@dimen/map_toggle_btn_height"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="4dp"
+                                    android:layout_marginEnd="4dp"
+                                    android:text="@string/mode_fusion"
+                                    android:textSize="@dimen/map_toggle_text_size"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    app:cornerRadius="@dimen/map_toggle_btn_radius"/>
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnModeVSlam"
+                                    android:layout_width="0dp"
+                                    android:layout_height="@dimen/map_toggle_btn_height"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="4dp"
+                                    android:text="@string/mode_vslam"
+                                    android:textSize="@dimen/map_toggle_text_size"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    app:cornerRadius="@dimen/map_toggle_btn_radius"/>
+
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- ── Map canvas card ── -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/mapCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginBottom="@dimen/map_section_gap"
+                        app:cardCornerRadius="@dimen/map_card_corner_radius"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="@color/map_background"
+                        app:strokeWidth="0dp">
+
+                        <com.example.geo_slam.ui.map.MapCanvasView
+                            android:id="@+id/mapCanvasView"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"/>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- ── Legend card ── -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/legendCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/map_section_gap"
+                        app:cardCornerRadius="@dimen/metric_card_corner_radius"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:strokeWidth="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:paddingLeft="@dimen/map_toggle_padding"
+                            android:paddingRight="@dimen/map_toggle_padding"
+                            android:paddingTop="12dp"
+                            android:paddingBottom="12dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="10dp"
+                                android:text="@string/section_legend"
+                                android:textAppearance="?attr/textAppearanceLabelSmall"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:letterSpacing="0.08"
+                                android:textAllCaps="true"/>
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <!-- FootSLAM -->
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical">
+                                    <View
+                                        android:layout_width="20dp"
+                                        android:layout_height="3dp"
+                                        android:background="@color/md_primary"
+                                        android:layout_marginEnd="8dp"/>
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/legend_foot"
+                                        android:textAppearance="?attr/textAppearanceLabelSmall"
+                                        android:textColor="?attr/colorOnSurface"/>
+                                </LinearLayout>
+
+                                <!-- vSLAM -->
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical">
+                                    <View
+                                        android:id="@+id/legendVslamLine"
+                                        android:layout_width="20dp"
+                                        android:layout_height="3dp"
+                                        android:background="@color/status_ok"
+                                        android:layout_marginEnd="8dp"/>
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/legend_vslam"
+                                        android:textAppearance="?attr/textAppearanceLabelSmall"
+                                        android:textColor="?attr/colorOnSurface"/>
+                                </LinearLayout>
+
+                                <!-- Position -->
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical">
+                                    <ImageView
+                                        android:layout_width="12dp"
+                                        android:layout_height="12dp"
+                                        android:src="@drawable/ic_avatar_dot"
+                                        android:contentDescription="@null"
+                                        android:layout_marginEnd="8dp"/>
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/legend_position"
+                                        android:textAppearance="?attr/textAppearanceLabelSmall"
+                                        android:textColor="?attr/colorOnSurface"/>
+                                </LinearLayout>
+
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- ── Bottom action bar ── -->
+                    <LinearLayout
+                        android:id="@+id/bottomBar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnStop"
+                            android:layout_width="0dp"
+                            android:layout_height="@dimen/btn_height_primary"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="10dp"
+                            android:text="@string/btn_stop"
+                            app:icon="@drawable/ic_stop"
+                            app:iconGravity="textStart"
+                            app:cornerRadius="@dimen/btn_corner_radius"
+                            app:backgroundTint="@color/status_error_container"
+                            android:textColor="@color/status_error"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSave"
+                            android:layout_width="@dimen/map_save_btn_size"
+                            android:layout_height="@dimen/btn_height_primary"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            app:icon="@drawable/ic_save"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:cornerRadius="@dimen/btn_corner_radius"/>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

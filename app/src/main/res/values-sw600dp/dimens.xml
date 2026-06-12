@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tablette 7" — sw600dp -->
+    <dimen name="content_padding_horizontal">32dp</dimen>
+    <dimen name="content_padding_vertical">24dp</dimen>
+
+    <dimen name="header_padding_top">64dp</dimen>
+    <dimen name="header_padding_horizontal">36dp</dimen>
+    <dimen name="header_padding_bottom">40dp</dimen>
+    <dimen name="header_title_size">36sp</dimen>
+    <dimen name="header_corner_radius">40dp</dimen>
+
+    <dimen name="splash_logo_size">128dp</dimen>
+    <dimen name="splash_logo_icon_size">68dp</dimen>
+    <dimen name="splash_logo_corner_radius">36dp</dimen>
+    <dimen name="splash_title_size">34sp</dimen>
+    <dimen name="splash_margin_horizontal">80dp</dimen>
+
+    <dimen name="metric_card_corner_radius">24dp</dimen>
+    <dimen name="metric_card_padding_v">22dp</dimen>
+    <dimen name="metric_card_padding_h">16dp</dimen>
+    <dimen name="metric_value_size">28sp</dimen>
+    <dimen name="metric_card_margin">8dp</dimen>
+
+    <dimen name="sensor_card_corner_radius">20dp</dimen>
+    <dimen name="sensor_icon_size">44dp</dimen>
+    <dimen name="sensor_icon_inner">26dp</dimen>
+
+    <dimen name="btn_height_primary">64dp</dimen>
+    <dimen name="btn_height_secondary">58dp</dimen>
+    <dimen name="btn_corner_radius">20dp</dimen>
+
+    <!-- Centre le contenu sur tablette -->
+    <dimen name="content_max_width">620dp</dimen>
+
+    <!-- Page Map — tablette 7" -->
+    <dimen name="map_header_padding_bottom">36dp</dimen>
+    <dimen name="map_max_width">860dp</dimen>
+    <dimen name="map_section_gap">16dp</dimen>
+    <dimen name="map_card_corner_radius">28dp</dimen>
+    <dimen name="map_toggle_corner_radius">24dp</dimen>
+    <dimen name="map_toggle_padding">20dp</dimen>
+    <dimen name="map_toggle_btn_height">52dp</dimen>
+    <dimen name="map_toggle_btn_radius">14dp</dimen>
+    <dimen name="map_toggle_text_size">14sp</dimen>
+    <dimen name="map_save_btn_size">64dp</dimen>
+    <dimen name="map_bottom_padding">28dp</dimen>
+
+    <!-- Page Map — Paysage tablette 7" -->
+    <dimen name="map_land_panel_width">320dp</dimen>
+    <dimen name="map_land_panel_padding_top">20dp</dimen>
+    <dimen name="map_land_panel_padding_bottom">20dp</dimen>
+    <dimen name="map_land_panel_padding_h">16dp</dimen>
+    <dimen name="map_land_card_padding">18dp</dimen>
+    <dimen name="map_land_title_size">24sp</dimen>
+    <dimen name="map_land_btn_height">46dp</dimen>
+    <dimen name="map_land_action_btn_height">56dp</dimen>
+    <dimen name="map_land_map_margin">14dp</dimen>
+</resources>
+
