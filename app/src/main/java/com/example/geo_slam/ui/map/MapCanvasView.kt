@@ -1,4 +1,3 @@
-// com/example/geo_slam/ui/map/MapCanvasView.kt
 package com.example.geo_slam.ui.map
 
 import android.content.Context
@@ -16,13 +15,19 @@ class MapCanvasView @JvmOverloads constructor(
     defStyle: Int = 0
 ) : View(context, attrs, defStyle) {
 
+    var onInitialPositionSelected: ((Float, Float) -> Unit)? = null
+
+    // --- DONNÉES ---
     var floorPlan: FloorPlan = FloorPlan.empty()
-        set(value) { field = value; isInitialized = false; invalidate() }
+        set(value) {
+            if (field.widthInMeters != value.widthInMeters || field.heightInMeters != value.heightInMeters) {
+                field = value
+                isInitialized = false
+                invalidate()
+            }
+        }
 
     var footSlamPath: List<PointF> = emptyList()
-        set(value) { field = value; invalidate() }
-
-    var vslamPath: List<PointF> = emptyList()
         set(value) { field = value; invalidate() }
 
     var avatarPosition: PointF? = null
@@ -31,51 +36,41 @@ class MapCanvasView @JvmOverloads constructor(
     var avatarHeading: Float = 0f
         set(value) { field = value; invalidate() }
 
+    var stepCount: Int = 0
+        set(value) { field = value; invalidate() }
+
     var displayMode: DisplayMode = DisplayMode.FUSION
         set(value) { field = value; invalidate() }
 
-    private var scaleFactor = 40f
+    // --- ÉTAT DU RENDU ---
+    private var scaleFactor = 60f
     private var offsetX = 0f
     private var offsetY = 0f
     private var isInitialized = false
 
     // --- PINCEAUX ---
-
-    private val outerWallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK; strokeWidth = 12f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND
-    }
-
-    private val sectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.DKGRAY; strokeWidth = 4f; style = Paint.Style.STROKE
-        // Effet pointillé pour les délimitations de zones (comme sur ton plan technique)
-        pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
-    }
-
+    private val gridPaint = Paint().apply { color = Color.parseColor("#EEEEEE"); strokeWidth = 1.5f; style = Paint.Style.STROKE }
+    private val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; strokeWidth = 12f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+    private val innerWallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; strokeWidth = 8f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val zoneFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private val zoneTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK; textSize = 26f; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
-    }
-
-    private val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK; strokeWidth = 10f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND
-    }
-    private val innerWallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#9E9E9E"); strokeWidth = 5f; style = Paint.Style.STROKE
-    }
+    private val polyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x30FFA726; style = Paint.Style.FILL }
     private val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#534AB7"); strokeWidth = 6f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND
-    }
-    private val vslamPathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FF6D00"); strokeWidth = 5f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND
-        pathEffect = DashPathEffect(floatArrayOf(18f, 8f), 0f)
+        color = Color.parseColor("#3498DB"); strokeWidth = 12f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
     }
     private val avatarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#E91E63") }
+    private val zoneTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK; textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    private val labelBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; alpha = 230; style = Paint.Style.FILL }
+    private val infoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.DKGRAY; textSize = 35f; typeface = Typeface.MONOSPACE }
 
-    // --- GESTES ---
+    private val tempPath = Path()
+    private val tempRect = RectF()
+
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             scaleFactor *= detector.scaleFactor
-            scaleFactor = scaleFactor.coerceIn(10f, 500f)
+            scaleFactor = scaleFactor.coerceIn(10f, 1500f)
             invalidate(); return true
         }
     })
@@ -83,116 +78,122 @@ class MapCanvasView @JvmOverloads constructor(
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dX: Float, dY: Float): Boolean {
             offsetX -= dX; offsetY -= dY; invalidate(); return true
         }
+        override fun onLongPress(e: MotionEvent) {
+            val worldX = (e.x - offsetX) / scaleFactor - floorPlan.doorX
+            val worldY = floorPlan.doorY - (e.y - offsetY) / scaleFactor
+            onInitialPositionSelected?.invoke(worldX, worldY)
+        }
     })
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event); gestureDetector.onTouchEvent(event); return true
     }
 
-    private val polyFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { 
-        color = 0x25FFA726 // Orange transparent
-        style = Paint.Style.FILL 
-    }
-    private val polyStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { 
-        color = Color.RED 
-        strokeWidth = 6f 
-        style = Paint.Style.STROKE 
-    }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        canvas.drawColor(Color.WHITE)
         if (floorPlan.widthInMeters <= 0f) return
         if (!isInitialized) { centerMap(); isInitialized = true }
 
-        // 1. Les zones colorées (Fond)
+        // 1. Grille technique
+        drawMetricGrid(canvas)
+
+        // 2. Zones de couleur
         floorPlan.zones.forEach { zone ->
-            // On ne dessine pas le fond rectangulaire pour Process Production car on a son polygone
             if (zone.name != "Process Production") {
                 zoneFillPaint.color = zone.color
-                val rect = getZoneRect(zone)
-                canvas.drawRect(rect, zoneFillPaint)
+                zoneFillPaint.alpha = 50
+                val w = 3.5f * scaleFactor; val h = 2.5f * scaleFactor
+                tempRect.set(mapToScreenX(zone.cx) - w/2, mapToScreenY(zone.cy) - h/2, mapToScreenX(zone.cx) + w/2, mapToScreenY(zone.cy) + h/2)
+                canvas.drawRect(tempRect, zoneFillPaint)
             }
-            canvas.drawText(zone.name, mapToScreenX(zone.cx), mapToScreenY(zone.cy), zoneTextPaint)
         }
 
-        // 2. Polygone de Process Production
+        // 3. Polygone Process Production
         if (floorPlan.processProductionPolygon.isNotEmpty()) {
-            val path = Path()
-            val firstPoint = floorPlan.processProductionPolygon.first()
-            path.moveTo(mapToScreenX(firstPoint.x), mapToScreenY(firstPoint.y))
-            
+            tempPath.reset()
+            val first = floorPlan.processProductionPolygon[0]
+            tempPath.moveTo(mapToScreenX(first.x), mapToScreenY(first.y))
             for (i in 1 until floorPlan.processProductionPolygon.size) {
-                val point = floorPlan.processProductionPolygon[i]
-                path.lineTo(mapToScreenX(point.x), mapToScreenY(point.y))
+                val p = floorPlan.processProductionPolygon[i]
+                tempPath.lineTo(mapToScreenX(p.x), mapToScreenY(p.y))
             }
-            path.close()
-            
-            canvas.drawPath(path, polyFillPaint)
-            canvas.drawPath(path, polyStrokePaint)
+            tempPath.close()
+            canvas.drawPath(tempPath, polyPaint)
         }
 
-        // 3. Les murs extérieurs (Épais)
+        // 4. MURS
         floorPlan.outerWalls.forEach { w ->
-            canvas.drawLine(mapToScreenX(w.x1), mapToScreenY(w.y1), mapToScreenX(w.x2), mapToScreenY(w.y2), outerWallPaint)
+            canvas.drawLine(mapToScreenX(w.x1), mapToScreenY(w.y1), mapToScreenX(w.x2), mapToScreenY(w.y2), wallPaint)
         }
-
-        // 4. Les délimitations de secteurs (Fines/Pointillés)
         floorPlan.innerWalls.forEach { w ->
-            canvas.drawLine(mapToScreenX(w.x1), mapToScreenY(w.y1), mapToScreenX(w.x2), mapToScreenY(w.y2), sectorPaint)
+            canvas.drawLine(mapToScreenX(w.x1), mapToScreenY(w.y1), mapToScreenX(w.x2), mapToScreenY(w.y2), innerWallPaint)
         }
 
-        // 5. Marquer la porte d'entrée
-        val doorPaint = Paint().apply { color = Color.RED; strokeWidth = 15f }
-        canvas.drawPoint(mapToScreenX(floorPlan.doorX), mapToScreenY(floorPlan.doorY), doorPaint)
-
-        // 6. Trajectoires et avatar
-        drawPath(canvas)
-        drawVslamPath(canvas)
-        drawAvatar(canvas)
-    }
-
-    // Fonction utilitaire pour dessiner un petit rectangle autour du label
-    private fun getZoneRect(zone: ZoneLabel): RectF {
-        val w = 1.5f * scaleFactor
-        val h = 0.8f * scaleFactor
-        val cx = mapToScreenX(zone.cx)
-        val cy = mapToScreenY(zone.cy)
-        return RectF(cx - w, cy - h, cx + w, cy + h)
-    }
-
-    private fun drawPath(canvas: Canvas) {
-        if (footSlamPath.size < 2) return
-        val path = Path()
-        path.moveTo(worldToScreenX(footSlamPath[0].x), worldToScreenY(footSlamPath[0].y))
-        for (i in 1 until footSlamPath.size) {
-            path.lineTo(worldToScreenX(footSlamPath[i].x), worldToScreenY(footSlamPath[i].y))
+        // 5. TRAJECTOIRE
+        if (footSlamPath.size >= 2) {
+            tempPath.reset()
+            tempPath.moveTo(worldToScreenX(footSlamPath[0].x), worldToScreenY(footSlamPath[0].y))
+            for (i in 1 until footSlamPath.size) {
+                tempPath.lineTo(worldToScreenX(footSlamPath[i].x), worldToScreenY(footSlamPath[i].y))
+            }
+            canvas.drawPath(tempPath, pathPaint)
         }
-        canvas.drawPath(path, pathPaint)
-    }
 
-    private fun drawVslamPath(canvas: Canvas) {
-        if (vslamPath.size < 2) return
-        val path = Path()
-        path.moveTo(worldToScreenX(vslamPath[0].x), worldToScreenY(vslamPath[0].y))
-        for (i in 1 until vslamPath.size) {
-            path.lineTo(worldToScreenX(vslamPath[i].x), worldToScreenY(vslamPath[i].y))
+        // 6. AVATAR
+        avatarPosition?.let { pos ->
+            val sx = worldToScreenX(pos.x); val sy = worldToScreenY(pos.y)
+            canvas.drawCircle(sx, sy, 32f, avatarPaint)
+            val drawAngle = avatarHeading - 90.0
+            val hx = sx + 50f * Math.cos(Math.toRadians(drawAngle)).toFloat()
+            val hy = sy + 50f * Math.sin(Math.toRadians(drawAngle)).toFloat()
+            canvas.drawLine(sx, sy, hx, hy, avatarPaint.apply { strokeWidth = 10f })
         }
-        canvas.drawPath(path, vslamPathPaint)
+
+        // 7. LABELS
+        val dynamicTextSize = (scaleFactor * 0.45f).coerceIn(25f, 70f)
+        zoneTextPaint.textSize = dynamicTextSize
+        floorPlan.zones.forEach { zone ->
+            val tx = mapToScreenX(zone.cx); val ty = mapToScreenY(zone.cy)
+            val textWidth = zoneTextPaint.measureText(zone.name)
+            tempRect.set(tx - textWidth / 2 - 15, ty - dynamicTextSize, tx + textWidth / 2 + 15, ty + 15)
+            canvas.drawRoundRect(tempRect, 15f, 15f, labelBgPaint)
+            canvas.drawText(zone.name, tx, ty, zoneTextPaint)
+        }
+
+        // 8. INFOS ET RÈGLE
+        drawOverlayInfo(canvas)
+        drawRuler(canvas)
     }
 
-    private fun drawAvatar(canvas: Canvas) {
-        val pos = avatarPosition ?: return
-        val sx = worldToScreenX(pos.x); val sy = worldToScreenY(pos.y)
-        canvas.drawCircle(sx, sy, 20f, avatarPaint)
+    private fun drawOverlayInfo(canvas: Canvas) {
+        val x = 40f
+        val y = height - 120f
+        canvas.drawText("Pas: $stepCount", x, y, infoPaint)
+        canvas.drawText("1m = ${scaleFactor.toInt()}px", x, y + 50f, infoPaint)
     }
 
-    // --- CALCULS DE COORDONNÉES ---
+    private fun drawRuler(canvas: Canvas) {
+        val rulerM = 2f
+        val px = rulerM * scaleFactor
+        val x = width - px - 40f; val y = height - 40f
+        canvas.drawLine(x, y, x + px, y, wallPaint)
+        canvas.drawLine(x, y, x, y - 15f, wallPaint)
+        canvas.drawLine(x + px, y, x + px, y - 15f, wallPaint)
+        canvas.drawText("${rulerM.toInt()}m", x + px / 2, y - 25f, zoneTextPaint.apply { textSize = 25f })
+    }
+
+    private fun drawMetricGrid(canvas: Canvas) {
+        val step = scaleFactor
+        val startX = offsetX % step; val startY = offsetY % step
+        for (x in 0..(width / step).toInt() + 1) canvas.drawLine(startX + x * step, 0f, startX + x * step, height.toFloat(), gridPaint)
+        for (y in 0..(height / step).toInt() + 1) canvas.drawLine(0f, startY + y * step, width.toFloat(), startY + y * step, gridPaint)
+    }
+
     private fun mapToScreenX(x: Float) = x * scaleFactor + offsetX
     private fun mapToScreenY(y: Float) = y * scaleFactor + offsetY
-
-    // SLAM (0,0) à la porte -> Conversion en coordonnées Plan
     private fun worldToScreenX(wx: Float) = (floorPlan.doorX + wx) * scaleFactor + offsetX
-    private fun worldToScreenY(wy: Float) = (floorPlan.doorY + wy) * scaleFactor + offsetY
+    private fun worldToScreenY(wy: Float) = (floorPlan.doorY - wy) * scaleFactor + offsetY
 
     private fun centerMap() {
         val padding = 0.85f

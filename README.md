@@ -1,71 +1,50 @@
 # Geo-SLAM : Système de Localisation Hybride (FootSLAM IA & vSLAM)
 
-Projet de localisation en environnement industriel (GPS-Denied) via smartphone, combinant odométrie inertielle par IA et vision par ordinateur.
+**Geo-SLAM** est une solution de pointe pour le positionnement en intérieur dans des environnements industriels où le signal GPS est indisponible (usines, entrepôts, complexes souterrains). Le projet fusionne l'intelligence artificielle, l'odométrie inertielle et le filtrage spatial pour offrir un suivi fluide, précis et réactif.
 
-## 🚀 Équipe & Responsabilités
+## 🎯 Contexte et Objectifs
 
-### 🦁 Lionel (Lead IA, Data & FootSLAM - Scrum Master)
-- **Acquisition Hardware** : Gestion directe du `SensorManager` (IMU à 100Hz) pour alimenter l'IA.
-- **Cœur IA** : Intégration modèles RoNIN / TLIO via TensorFlow Lite.
-- **Fusion** : Filtre de Kalman (EKF) pour le lissage de trajectoire et calcul du (X, Y, Z).
+Dans les grands complexes industriels, la navigation est critique mais complexe en raison des interférences métalliques et de l'absence de GPS. L'objectif de Geo-SLAM est de fournir une alternative robuste capable de :
+*   **Localiser avec précision** sans infrastructure externe (balises, Wi-Fi).
+*   **Garantir une réactivité maximale** (latence zéro) entre le mouvement réel et le curseur à l'écran.
+*   **Synchroniser parfaitement** la détection des pas avec la distance virtuelle parcourue.
+*   **Respecter les contraintes spatiales** en utilisant uniquement le périmètre extérieur comme limite infranchissable, tout en permettant une libre circulation entre les zones internes.
 
-### 👓 Narcisse (Ingénieur Vision & vSLAM)
-- **Vision Acquisition** : Flux Camera2 API et gestion du flux d'images pour le SLAM.
-- **Moteur SLAM** : Intégration ORB-SLAM3 (C++/NDK).
-- **Géométrie** : Calibration, Tracking et Mapping 3D (Nuage de points).
+## 🏗 Architecture du Projet
 
-### 🎨 Sonia (Ingénieure Logiciel Mobile & Rendu 3D)
-- **UI/UX** : Interface de navigation, dashboard et contrôles tactiles.
-- **Rendu 3D** : Affichage de la Map et de l'avatar (consomme les positions de Lionel et le nuage de points de Narcisse).
+Le projet repose sur une architecture hybride Kotlin/C++ (NDK) optimisée pour la performance.
 
----
+### 1. Acquisition et Gestion (Kotlin)
+*   **FootSlamManager.kt** : Gère l'acquisition IMU à 100Hz et diffuse les flux de position via `StateFlow`.
+*   **Logique de Plan** : Filtre les données cartographiques pour ne transmettre au moteur que les `outerWalls` (murs extérieurs), libérant ainsi le mouvement entre les pièces.
 
-## 📂 Structure du Projet
+### 2. Moteur de Calcul Natif (C++/NDK)
+*   **Inférence IA (TensorFlow Lite)** : Intègre un modèle RoNIN pour transformer les accélérations brutes en vecteurs de vitesse.
+*   **Calibration V14 (Boost +30%)** : Paramétrage agressif (`SCALE_FACTOR = 5.5`, `alpha = 0.95`) pour supprimer tout retard de traitement.
+*   **Synchronisation des Pas** : Système hybride (Hardware + Fallback par distance à 0.50m/pas) pour une cohérence totale du compteur.
+*   **Moteur de Collision** : Bloque le pion contre les limites périmétriques globales.
 
-### Code Android (Kotlin)
-- `com.example.geo_slam.footslam` : Espace de Lionel (IA & Acquisition IMU).
-- `com.example.geo_slam.vslam` : Espace de Narcisse (Vision & Caméra).
-- `com.example.geo_slam.ui` : Espace de Sonia (Rendu 3D & Interface).
+### 3. Interface et Rendu (UI)
+*   Rendu fluide à 60 FPS via `MapCanvasView`.
+*   Visualisation responsive s'adaptant dynamiquement au niveau de zoom.
 
----
+## 🧪 Comment tester le projet ?
 
-## 📜 Charte de Collaboration Git
+Pour obtenir les meilleurs résultats, suivez cette procédure :
 
-### Branches
-- `main` : Stable, production uniquement.
-- `develop` : Branche d'intégration.
-- `feat/nom-tache` : Branches de travail personnel.
+### 1. Initialisation et Calibration
+*   **Sélection du point initial** : Vous pouvez définir votre point de départ exact en effectuant un **appui long** (quelques secondes) sur la zone spécifique de la carte où vous vous trouvez.
+*   **Calibration (4s)** : Une fois positionné, restez immobile pendant les 4 premières secondes. Le système calculera automatiquement les biais des capteurs pour annuler la dérive (drift).
 
-### Git LFS (Large File Storage)
-Obligatoire pour les fichiers lourds : `*.tflite`, `*.so`, `*.a`, `*.pb`.
-Assurez-vous d'avoir installé Git LFS : `git lfs install`.
+### 2. Test de Déplacement
+*   Commencez à marcher normalement.
+*   **Réactivité** : Observez le pion. Il doit coller instantanément à vos pas.
+*   **Compteur** : Vérifiez que chaque pas physique est comptabilisé et synchronisé avec l'avance du curseur.
 
----
+### 3. Test de Navigation Inter-Zones
+*   Traversez les frontières entre deux pièces ou zones. Le pion doit circuler librement.
+*   Dirigez-vous vers les bords de la carte : le pion doit être stoppé net par le périmètre extérieur.
 
-## 🛠 Guide des Commandes Git Essentielles
-
-Ce guide regroupe les commandes fondamentales selon notre flux de travail.
-
-### 1. Gestion des Branches (Navigation & Création)
-- `git branch` : Liste les branches locales. (`*` indique la branche actuelle).
-- `git checkout <nom-de-la-branche>` : Bascule sur une branche existante.
-- `git checkout -b feature/<prenom>-<nom-de-la-tache>` : Crée une nouvelle branche et y bascule.
-  - *Exemple* : `git checkout -b feature/lionel-local-routes-injection`
-
-### 2. Synchronisation avec le Dépôt Distant
-- `git pull origin develop` : Récupère et fusionne les dernières modifications du serveur dans votre branche.
-
-### 3. Enregistrement des Modifications (Commits)
-- `git add .` : Ajoute tous les fichiers modifiés à la zone de staging.
-- `git commit -m "<type>(<portée>): <description>"` : Enregistre l'instantané de votre code.
-  - *Types* : `feat`, `fix`, `docs`, `refactor`, `style`.
-  - *Exemple* : `git commit -m "feat(navigation): complete french instructions parser"`
-
-### 4. Intégration des Changements (Merge)
-- `git merge develop` : Fusionne les nouveautés de la branche `develop` dans votre branche active (indispensable pour rester à jour).
-
-### 5. Publication vers le Serveur Distant
-- `git push origin <nom-de-la-branche>` : Envoie vos commits vers GitHub avant de créer une Pull Request.
-  - *Exemple* : `git push origin feature/lionel-navigation-parser`
-
-> **Note** : Avant chaque push, effectuez toujours un pull de la branche principale pour résoudre les conflits localement.
+### 4. Configuration Technique
+*   **Android 15+** (Alignement 16 KB requis).
+*   **Capteurs** : Accéléromètre, Gyroscope (obligatoires) et Baromètre (recommandé).

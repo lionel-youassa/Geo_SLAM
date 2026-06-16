@@ -26,7 +26,10 @@ class SensorHardware(context: Context, private val footSlamManager: FootSlamMana
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        // FootSlamManager gère ses propres capteurs via startAcquisition()
+        event?.let {
+            // Sonia envoie les données à Lionel pour traitement IA
+            // footSlamManager.onSensorDataReceived(it.sensor.type, it.values, it.timestamp)
+        }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

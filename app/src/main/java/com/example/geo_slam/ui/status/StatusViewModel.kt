@@ -8,7 +8,6 @@ import android.os.BatteryManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.geo_slam.R
-import com.example.geo_slam.vslam.VSlamManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,7 +67,7 @@ class StatusViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.value = StatusUiState(
             sensors        = sensors,
             metrics        = readSystemMetrics(context),
-            canStart       = sensors.filter { it.id != "slam" }.all { it.status == ComponentStatus.OK },
+            canStart       = sensors.all { it.status == ComponentStatus.OK },
             lastRefreshLabel = "Dernière vérif. à l'instant"
         )
     }
@@ -101,23 +100,14 @@ class StatusViewModel(app: Application) : AndroidViewModel(app) {
         iconRes  = R.drawable.ic_cpu
     )
 
-    private fun checkSlam(): SensorRowState {
-        val stateStr = VSlamManager.currentTrackingState
-        val (detail, status) = when (stateStr) {
-            "TRACKING"      -> Pair("Tracking actif",      ComponentStatus.OK)
-            "RECENTLY_LOST" -> Pair("Tracking instable",   ComponentStatus.LOADING)
-            "INITIALIZING"  -> Pair("Initialisation...",   ComponentStatus.LOADING)
-            "LOST"          -> Pair("Tracking perdu",      ComponentStatus.ERROR)
-            else            -> Pair("En attente caméra",   ComponentStatus.LOADING)
-        }
-        return SensorRowState(
-            id      = "slam",
-            name    = "ORB-SLAM3",
-            detail  = detail,
-            status  = status,
-            iconRes = R.drawable.ic_map
-        )
-    }
+    // TODO Narcisse : remplacer par ORB-SLAM3 trackingState
+    private fun checkSlam() = SensorRowState(
+        id       = "slam",
+        name     = "ORB-SLAM3",
+        detail   = "Prêt",
+        status   = ComponentStatus.OK,
+        iconRes  = R.drawable.ic_map
+    )
 
     // --- Métriques système ---
 
