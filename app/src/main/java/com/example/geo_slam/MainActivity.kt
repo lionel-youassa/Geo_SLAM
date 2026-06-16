@@ -1,5 +1,7 @@
 package com.example.geo_slam
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.example.geo_slam.footslam.FootSlamManager
@@ -11,6 +13,14 @@ import com.example.geo_slam.footslam.FootSlamManager
 class MainActivity : AppCompatActivity() {
 
     private lateinit var footSlamManager: FootSlamManager
+    private lateinit var vSlamManager: VSlamManager
+
+    // ViewModel partagé avec MapFragment via activityViewModels()
+    private val mapViewModel: MapViewModel by viewModels()
+
+    private var prevFootX = 0f
+    private var prevFootY = 0f
+    private var prevFootZ = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,11 +42,14 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+    }
 
         // Initialisation du moteur FootSLAM (Lionel)
         footSlamManager = FootSlamManager.getInstance(this)
         footSlamManager.initModel(assets, "ronin_model.tflite")
     }
+
+    // ── Cycle de vie ─────────────────────────────────────────────────────────
 
     override fun onResume() {
         super.onResume()
@@ -46,5 +59,6 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         footSlamManager.stopAcquisition()
+        vSlamManager.stopCamera()
     }
 }

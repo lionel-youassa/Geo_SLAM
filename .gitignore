@@ -13,3 +13,13 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Notes de développement locales (ne pas pusher)
+NOTES_DEV.md
+
+# OpenCV SDK (trop lourd pour Git — télécharger séparément)
+app/src/main/cpp/opencv/
