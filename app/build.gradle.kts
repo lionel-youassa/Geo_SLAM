@@ -31,6 +31,7 @@ android {
     buildFeatures {
         viewBinding = true
         prefab = true
+        buildConfig = true
     }
 
     packaging {
@@ -60,6 +61,8 @@ dependencies {
     implementation(libs.tflite.gpu)
     implementation(libs.tflite.api)
     implementation(libs.tflite.support)
+    implementation(libs.androidx.navigation.fragment.ktx)
+    implementation(libs.androidx.navigation.ui.ktx)
 }
 
 val tfliteAar by configurations.creating

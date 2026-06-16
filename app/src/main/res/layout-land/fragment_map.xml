@@ -1,276 +1,145 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
     android:background="?attr/colorSurfaceVariant">
 
-    <!-- PANNEAU GAUCHE -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="@dimen/map_land_panel_width"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurface">
+        android:orientation="horizontal">
 
-        <!-- Header violet -->
-        <LinearLayout
-            android:id="@+id/headerContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="?attr/colorPrimary"
-            android:paddingLeft="12dp"
-            android:paddingRight="12dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            app:layout_constraintTop_toTopOf="parent">
+        <!-- PANNEAU GAUCHE -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="240dp"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface">
 
-            <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:src="@drawable/ic_geo_slam_logo"
-                android:contentDescription="@null"
-                android:layout_marginEnd="8dp"
-                app:tint="?attr/colorOnPrimary"/>
-
-            <TextView
-                android:layout_width="0dp"
+            <!-- Header violet -->
+            <LinearLayout
+                android:id="@+id/headerContainer"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/map_title"
-                android:textColor="?attr/colorOnPrimary"
-                android:textAppearance="?attr/textAppearanceTitleSmall"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="?attr/colorPrimary"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                app:layout_constraintTop_toTopOf="parent">
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/statusPill"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="99dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="#20FFFFFF"
-                app:strokeWidth="0dp">
-                <LinearLayout
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_geo_slam_logo"
+                    android:contentDescription="@null"
+                    android:layout_marginEnd="8dp"
+                    app:tint="?attr/colorOnPrimary"/>
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Geo-SLAM"
+                    android:textColor="?attr/colorOnPrimary"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"/>
+
+                <TextView
+                    android:id="@+id/statusChipText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingLeft="8dp"
-                    android:paddingRight="8dp"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp">
-                    <View
-                        android:layout_width="5dp"
-                        android:layout_height="5dp"
-                        android:background="@drawable/bg_status_dot"
-                        android:layout_marginEnd="4dp"/>
-                    <TextView
-                        android:id="@+id/statusChipText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/status_running"
-                        android:textColor="#DDFFFFFF"
-                        android:textSize="10sp"/>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                    android:text="Running"
+                    android:textColor="#DDFFFFFF"
+                    android:textSize="10sp"/>
+            </LinearLayout>
 
-        </LinearLayout>
-
-        <!-- Corps scrollable -->
-        <androidx.core.widget.NestedScrollView
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:fillViewport="true"
-            app:layout_constraintTop_toBottomOf="@id/headerContainer"
-            app:layout_constraintBottom_toTopOf="@id/buttonsContainer">
-
+            <!-- Boutons ancrés en bas -->
             <LinearLayout
+                android:id="@+id/buttonsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="10dp">
+                android:padding="10dp"
+                app:layout_constraintBottom_toBottomOf="parent">
 
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/modeCard"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnStop"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:cardCornerRadius="14dp"
-                    app:cardElevation="0dp"
-                    app:cardBackgroundColor="?attr/colorSurfaceVariant"
-                    app:strokeWidth="0dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <!-- Label MODE -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_mode"
-                            android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:letterSpacing="0.08"
-                            android:textAllCaps="true"/>
-
-                        <!-- Dropdown -->
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnModeDropdown"
-                            android:layout_width="match_parent"
-                            android:layout_height="40dp"
-                            android:layout_marginTop="8dp"
-                            android:text="@string/mode_fusion"
-                            android:textSize="11sp"
-                            style="@style/Widget.Material3.Button.TonalButton"
-                            app:cornerRadius="10dp"
-                            app:icon="@drawable/ic_arrow_drop_down"
-                            app:iconGravity="end"
-                            app:iconSize="18dp"/>
-
-                        <!-- Divider -->
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="0.5dp"
-                            android:layout_marginTop="14dp"
-                            android:layout_marginBottom="14dp"
-                            android:background="?attr/colorOutlineVariant"/>
-
-                        <!-- Label LÉGENDE -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_legend"
-                            android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:letterSpacing="0.08"
-                            android:textAllCaps="true"/>
-
-                        <!-- FootSLAM -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginTop="10dp">
-                            <View
-                                android:layout_width="16dp"
-                                android:layout_height="3dp"
-                                android:layout_marginEnd="8dp"
-                                android:background="@color/md_primary"/>
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/legend_foot"
-                                android:textAppearance="?attr/textAppearanceLabelSmall"
-                                android:textColor="?attr/colorOnSurface"/>
-                        </LinearLayout>
-
-                        <!-- vSLAM -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginTop="8dp">
-                            <View
-                                android:id="@+id/legendVslamLine"
-                                android:layout_width="16dp"
-                                android:layout_height="3dp"
-                                android:layout_marginEnd="8dp"
-                                android:background="@color/status_ok"/>
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/legend_vslam"
-                                android:textAppearance="?attr/textAppearanceLabelSmall"
-                                android:textColor="?attr/colorOnSurface"/>
-                        </LinearLayout>
-
-                        <!-- Position -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginTop="8dp">
-                            <ImageView
-                                android:layout_width="10dp"
-                                android:layout_height="10dp"
-                                android:layout_marginEnd="8dp"
-                                android:src="@drawable/ic_avatar_dot"
-                                android:contentDescription="@null"/>
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/legend_position"
-                                android:textAppearance="?attr/textAppearanceLabelSmall"
-                                android:textColor="?attr/colorOnSurface"/>
-                        </LinearLayout>
-
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
+                    android:text="STOP"
+                    app:backgroundTint="@color/status_error_container"
+                    android:textColor="@color/status_error"/>
             </LinearLayout>
-        </androidx.core.widget.NestedScrollView>
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- Boutons ancrés en bas -->
+        <!-- MAP -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/mapCard"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="10dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/map_background"
+            app:strokeWidth="0dp">
+
+            <com.example.geo_slam.ui.map.MapCanvasView
+                android:id="@+id/mapCanvasView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"/>
+
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+
+    <!-- Overlay Compte à rebours / Calibrage (Commun aux deux orientations) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/calibrationOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#AA000000"
+        android:visibility="gone"
+        android:elevation="10dp"
+        android:clickable="true"
+        android:focusable="true">
+
         <LinearLayout
-            android:id="@+id/buttonsContainer"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:paddingBottom="10dp"
-            app:layout_constraintBottom_toBottomOf="parent">
+            android:gravity="center"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnStop"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginBottom="6dp"
-                android:text="@string/btn_stop"
-                android:textSize="11sp"
-                app:icon="@drawable/ic_stop"
-                app:iconGravity="textStart"
-                app:cornerRadius="12dp"
-                app:backgroundTint="@color/status_error_container"
-                android:textColor="@color/status_error"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STABILISATION DU SYSTÈME"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSave"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                app:icon="@drawable/ic_save"
-                app:iconGravity="textStart"
-                android:text="@string/btn_save"
-                app:cornerRadius="12dp"
-                android:textSize="11sp"/>
+            <TextView
+                android:id="@+id/txtCountdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="3"
+                android:textColor="#FFFFFF"
+                android:textSize="80sp"
+                android:textStyle="bold"/>
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Veuillez rester immobile..."
+                android:textColor="#DDFFFFFF"
+                android:textSize="14sp"/>
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- MAP -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/mapCard"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:layout_margin="10dp"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="0dp"
-        app:cardBackgroundColor="@color/map_background"
-        app:strokeWidth="0dp">
-
-        <com.example.geo_slam.ui.map.MapCanvasView
-            android:id="@+id/mapCanvasView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-
-    </com.google.android.material.card.MaterialCardView>
-
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

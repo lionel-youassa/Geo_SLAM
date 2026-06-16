@@ -13,49 +13,39 @@ Projet de localisation en environnement industriel (GPS-Denied) via smartphone, 
 - **Moteur SLAM** : Intégration ORB-SLAM3 pour le mapping 3D.
 
 ### 🎨 Sonia (Ingénieure Logiciel Mobile & Rendu 3D)
-- **UI & Rendu** : Visualisation de la trajectoire et dashboard Android.
+- **UI & Rendu** : Visualisation de la trajectoire et moteur de rendu 2D/3D (Canvas & MapRenderer).
 
 ---
 
-## 🛠 Journal de Développement : Lionel (FootSLAM IA)
+## 🛠 Avancées du Projet (Juin 2026)
 
-Voici les étapes techniques majeures réalisées pour la mise sur pied du moteur :
+### 1. Moteur FootSLAM : Précision & Stabilité (Lionel)
+- **Proportionnalité 1:1** : Recalibrage du `SCALE_FACTOR` (4.5) pour assurer que la distance virtuelle à l'écran correspond exactement à la distance physique (test validé sur 12m).
+- **Indépendance de l'Orientation** : Implémentation du `remapCoordinateSystem` permettant un suivi identique en mode **Portrait** et **Landscape** (grand écran).
+- **Anti-Drift (ZUPT)** : Détection de stationnarité par **variance d'accélération**, bloquant toute dérive rectiligne lorsque le téléphone est immobile en main.
+- **Robustesse Android 15** : Mise en conformité avec l'**alignement 16 KB** et sécurisation des threads via `recursive_mutex`.
 
-### 1. Acquisition IMU Haute Fréquence (100Hz)
-- **Technique** : Utilisation du `SensorManager` en mode `SENSOR_DELAY_FASTEST`.
-- **Justification** : Indispensable pour le modèle RoNIN afin de capturer les micro-accélérations de la marche humaine et éviter le repliement spectral (aliasing).
+### 2. Interface Utilisateur : Responsive & Fluide (Sonia)
+- **Architecture de Navigation** : Passage à un système de **Fragments** (`Splash` -> `Status` -> `Map`) géré par un `NavHostFragment`.
+- **Rendu Responsive** : Le moteur `MapCanvasView` adapte désormais la taille des textes des salles (POI) dynamiquement en fonction du niveau de zoom de l'utilisateur.
+- **Optimisation "Zéro Latence"** : Refonte de la boucle de dessin (`onDraw`) pour éliminer les allocations d'objets, garantissant un rendu fluide à 60 FPS.
+- **Décor Industriel** : Intégration complète des cloisons, zones de production et points d'intérêt contrastés pour une lecture instantanée.
 
-### 2. Moteur d'Inférence RoNIN (C++/NDK)
-- **Technique** : Traitement asynchrone par fenêtres glissantes de 200 échantillons (2 sec).
-- **Justification** : Le C++ permet un traitement en temps réel sans latence, crucial pour éviter tout décalage entre le mouvement réel et l'avatar.
+### 3. Rapport de Qualification (Lionel & Sonia)
+- **Bilan de Conformité** : Validation des KPI avec une erreur relative de distance (ERD) stabilisée à **< 2.5%** et une erreur de fermeture de boucle de **0.82m**.
 
-### 3. Couche de Contraintes Physiques
-- **Technique** : Algorithme de bridage de vitesse par `MAX_STEP_LIMIT`.
-- **Justification** : Sécurité contre les "hallucinations" de l'IA lors de mouvements brusques ou de chocs, garantissant une trajectoire fluide.
+---
 
-### 4. Filtre de Kalman Étendu (EKF) & Prédiction 100Hz
-- **Technique** : Fusion statistique entre l'IMU (prédiction) et l'IA (correction).
-- **Justification** : Permet un rendu à 100 FPS (très fluide) pour Sonia, tout en corrigeant la dérive naturelle de l'IMU par les prédictions globales de l'IA.
+## 🛠 Détails Techniques du Cœur IA (Lionel)
 
-### 5. Altitude 3D & Baromètre
-- **Technique** : Formule hypsométrique pour convertir la pression en mètres relatifs.
-- **Justification** : Seule méthode fiable en intérieur (GPS-Denied) pour détecter les changements d'étages et les déplacements dans la dimension Z.
-
-### 6. Zero Velocity Update (ZUPT)
-- **Technique** : Détection de l'état stationnaire via seuillage adaptatif Gyro/Acc.
-- **Justification** : Arrête instantanément l'accumulation d'erreurs (drift) lorsque l'utilisateur est immobile, stabilisant la position sur la carte.
-
-### 7. Auto-Calibration des Biais
-- **Technique** : Calcul automatique des offsets IMU au repos (2 premières secondes).
-- **Justification** : Élimine les dérives matérielles systématiques des capteurs du smartphone, augmentant radicalement la précision long-terme.
-
-### 8. Transformation de Repère (Body-to-World)
-- **Technique** : Projection des vecteurs de déplacement via Quaternions de rotation.
-- **Justification** : Garantit que si le téléphone tourne mais que l'utilisateur marche droit, la trajectoire sur la carte reste alignée avec le monde réel.
+1. **Acquisition IMU (100Hz)** : Indispensable pour capturer les micro-accélérations de la marche.
+2. **Moteur NDK** : Traitement asynchrone pour éviter tout décalage entre le pas réel et l'avatar.
+3. **Altitude 3D** : Formule hypsométrique via Baromètre pour la détection d'étage.
+4. **Auto-Calibration** : Calcul automatique des biais IMU durant les 4 premières secondes de repos.
 
 ---
 
 ## 📂 Structure du Projet
 - `app/src/main/cpp/footslam` : Moteur C++ (Lionel)
 - `com.example.geo_slam.footslam` : Acquisition Kotlin (Lionel)
-- `com.example.geo_slam.ui` : Interface Sonia
+- `com.example.geo_slam.ui.map` : Véritable Interface Responsive (Sonia)

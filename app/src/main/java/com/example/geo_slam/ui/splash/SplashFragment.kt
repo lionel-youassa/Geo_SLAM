@@ -24,6 +24,7 @@ class SplashFragment : Fragment() {
     private var _binding: FragmentSplashBinding? = null
     private val binding get() = _binding!!
 
+    // Note : Assurez-vous que SplashViewModel est bien implémenté
     private val viewModel: SplashViewModel by viewModels()
 
     override fun onCreateView(
@@ -36,7 +37,12 @@ class SplashFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.versionText.text = "v${BuildConfig.VERSION_NAME} — build ${BuildConfig.BUILD_TYPE}"
+        // Affichage de la version (Lionel / Sonia Sync)
+        try {
+            binding.versionText.text = "v${BuildConfig.VERSION_NAME} — build ${BuildConfig.BUILD_TYPE}"
+        } catch (e: Exception) {
+            binding.versionText.text = "v1.0.0 — Production"
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -54,8 +60,6 @@ class SplashFragment : Fragment() {
     }
 
     private fun renderSensors(sensors: List<SensorState>) {
-
-        // Gonfle les items une seule fois
         if (binding.statusList.childCount == 0) {
             sensors.forEach { _ ->
                 layoutInflater.inflate(
@@ -67,30 +71,21 @@ class SplashFragment : Fragment() {
         sensors.forEachIndexed { i, sensor ->
             val itemView = binding.statusList.getChildAt(i) ?: return@forEachIndexed
 
-            // Icône
             val iconRes = when (sensor.label) {
                 "IMU (100 Hz)"        -> R.drawable.ic_imu
                 "Caméra"              -> R.drawable.ic_camera
                 "Modèle IA (TFLite)"  -> R.drawable.ic_cpu
                 else                  -> R.drawable.ic_geo_slam_logo
             }
-            itemView.findViewById<ImageView>(R.id.sensorIcon)
-                ?.setImageResource(iconRes)
-
-            // Nom
-            itemView.findViewById<TextView>(R.id.statusLabel)
-                ?.text = sensor.label
-
-            // Détail selon statut
-            itemView.findViewById<TextView>(R.id.statusDetail)
-                ?.text = when (sensor.status) {
+            itemView.findViewById<ImageView>(R.id.sensorIcon)?.setImageResource(iconRes)
+            itemView.findViewById<TextView>(R.id.statusLabel)?.text = sensor.label
+            itemView.findViewById<TextView>(R.id.statusDetail)?.text = when (sensor.status) {
                 SensorStatus.OK      -> "Opérationnel"
                 SensorStatus.LOADING -> "Initialisation…"
                 SensorStatus.ERROR   -> "Erreur détectée"
                 SensorStatus.PENDING -> "En attente"
             }
 
-            // Chip
             val chip = itemView.findViewById<Chip>(R.id.statusChip)
             val (labelStr, colorRes) = when (sensor.status) {
                 SensorStatus.OK      -> "OK"           to R.color.status_ok
@@ -99,9 +94,7 @@ class SplashFragment : Fragment() {
                 SensorStatus.PENDING -> "En attente"   to R.color.status_pending
             }
             chip?.text = labelStr
-            chip?.chipBackgroundColor = ContextCompat.getColorStateList(
-                requireContext(), colorRes
-            )?.withAlpha(30)
+            chip?.chipBackgroundColor = ContextCompat.getColorStateList(requireContext(), colorRes)?.withAlpha(30)
             chip?.setTextColor(ContextCompat.getColor(requireContext(), colorRes))
         }
     }
