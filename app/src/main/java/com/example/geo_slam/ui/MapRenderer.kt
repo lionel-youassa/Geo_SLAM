@@ -4,17 +4,17 @@ import android.view.Surface
 
 class MapRenderer {
     /**
-     * Sonia : Cette méthode sera appelée pour dessiner la Map 3D
+     * Sonia : Cette méthode dessine la Map 3D (OpenGL ES)
      */
     external fun renderFrame()
 
     /**
-     * Lionel : Met à jour la position de la caméra basée sur le FootSLAM
+     * Lionel : Met à jour la position de la caméra
      */
     external fun updateCameraPosition(x: Float, y: Float, z: Float)
 
     /**
-     * Sonia : Initialise la surface d'affichage pour OpenGL
+     * Permet de lier l'interface Android au moteur de rendu natif
      */
     external fun setSurface(surface: Surface?)
 

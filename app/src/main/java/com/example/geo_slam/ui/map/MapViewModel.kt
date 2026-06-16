@@ -1,98 +1,89 @@
-// com/example/geo_slam/ui/map/MapViewModel.kt
 package com.example.geo_slam.ui.map
 
+import android.app.Application
 import android.graphics.PointF
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.geo_slam.footslam.FootSlamManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.cos
-import kotlin.math.sin
 
 data class MapUiState(
-    val displayMode: DisplayMode    = DisplayMode.FUSION,
+    val displayMode: DisplayMode    = DisplayMode.FOOT_SLAM,
     val footSlamPath: List<PointF>  = emptyList(),
-    val vslamPath: List<PointF>     = emptyList(),
     val avatarPosition: PointF?     = null,
     val avatarHeading: Float        = 0f,
+    val stepCount: Int              = 0,
     val floorPlan: FloorPlan        = FloorPlan.laboVectoriel(),
-    val isRunning: Boolean          = true
+    val isRunning: Boolean          = true,
+    val countdown: Int?             = null // null means ready
 )
 
-class MapViewModel : ViewModel() {
+class MapViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val footSlamManager = FootSlamManager.getInstance(application)
+    
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
 
     init {
-        startFakeLocalization()
+        // Synchronisation du plan avec le moteur natif
+        footSlamManager.setFloorPlan(_uiState.value.floorPlan)
+        
+        startCalibrationCountdown()
+        startRealLocalization()
+        observeHeading()
+        observeStepCount()
     }
 
-    // ---- Mode d'affichage ----
+    private fun startCalibrationCountdown() = viewModelScope.launch {
+        for (i in 3 downTo 1) {
+            _uiState.update { it.copy(countdown = i) }
+            delay(1000)
+        }
+        _uiState.update { it.copy(countdown = null) }
+    }
+
+    fun setInitialPosition(x: Float, y: Float) {
+        footSlamManager.setInitialPosition(x, y)
+        _uiState.update { it.copy(footSlamPath = listOf(PointF(x, y)), avatarPosition = PointF(x, y)) }
+    }
+
     fun setDisplayMode(mode: DisplayMode) {
         _uiState.update { it.copy(displayMode = mode) }
     }
 
-    // ---- Stop ----
     fun stopLocalization() {
         _uiState.update { it.copy(isRunning = false) }
+        footSlamManager.stopAcquisition()
     }
 
-    // ---- Simulation — remplacer par les vrais flows de Lionel et Narcisse ----
-    // TODO Lionel  : remplacer startFakeLocalization() par positionFlow de PositionProvider
-    // TODO Narcisse: brancher le vslamPath depuis MapDataProvider.newPointsFlow
-    private fun startFakeLocalization() = viewModelScope.launch {
-        var t = 0f
-        val footPath = mutableListOf<PointF>()
-        val vslamPath = mutableListOf<PointF>()
-
-        while (isActive && _uiState.value.isRunning) {
-            // Trajectoire simulée en forme de courbe dans le labo
-            val x = 1f + 5f * (t / 30f)
-            val y = 4f + 3f * sin(t * 0.3f)
-
-            // FootSLAM — légèrement bruité
-            footPath.add(PointF(x, y))
-
-            // vSLAM — légèrement décalé (simule la différence entre les deux)
-            val nx = x + 0.05f * cos(t * 2f)
-            val ny = y + 0.05f * sin(t * 2f)
-            vslamPath.add(PointF(nx, ny))
-
+    private fun startRealLocalization() = viewModelScope.launch {
+        footSlamManager.positionFlow.collect { realPos ->
             _uiState.update { state ->
-                state.copy(
-                    footSlamPath   = footPath.toList(),
-                    vslamPath      = vslamPath.toList(),
-                    avatarPosition = PointF(x, y),
-                    avatarHeading  = (t * 6f) % 360f
-                )
+                val lastPos = state.footSlamPath.lastOrNull()
+                if (lastPos == null || lastPos.x != realPos.x || lastPos.y != realPos.y) {
+                    state.copy(
+                        footSlamPath = state.footSlamPath + realPos,
+                        avatarPosition = realPos
+                    )
+                } else {
+                    state.copy(avatarPosition = realPos)
+                }
             }
-
-            t += 0.5f
-            delay(200L)   // mise à jour 5 fois par seconde
         }
     }
 
-    // Exemple d'implémentation dans MapViewModel.kt
-//    private fun startRealLocalization() = viewModelScope.launch {
-//        // On écoute les vraies données (ex: Flow de PointF)
-//        footSlamProvider.positionFlow.collect { realPos ->
-//            _uiState.update { state ->
-//                // En fonction du mode, vous décidez ce qui s'affiche
-//                val finalPos = when (state.displayMode) {
-//                    DisplayMode.FOOT_SLAM -> realPos
-//                    DisplayMode.VSLAM -> vslamProvider.currentPos
-//                    DisplayMode.FUSION -> fusePositions(realPos, vslamProvider.currentPos)
-//                }
-//
-//                state.copy(
-//                    footSlamPath = state.footSlamPath + realPos, // Ajoute au tracé
-//                    avatarPosition = finalPos, // Fait bouger l'avatar
-//                    avatarHeading = footSlamProvider.currentHeading
-//                )
-//            }
-//        }
-//    }
+    private fun observeHeading() = viewModelScope.launch {
+        footSlamManager.headingFlow.collect { heading ->
+            _uiState.update { it.copy(avatarHeading = heading) }
+        }
+    }
+
+    private fun observeStepCount() = viewModelScope.launch {
+        footSlamManager.stepCountFlow.collect { count ->
+            _uiState.update { it.copy(stepCount = count) }
+        }
+    }
 }

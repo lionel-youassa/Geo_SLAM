@@ -1,61 +1,50 @@
 # Geo-SLAM : Système de Localisation Hybride (FootSLAM IA & vSLAM)
 
-Projet de localisation en environnement industriel (GPS-Denied) via smartphone, combinant odométrie inertielle par IA et vision par ordinateur.
+**Geo-SLAM** est une solution de pointe pour le positionnement en intérieur dans des environnements industriels où le signal GPS est indisponible (usines, entrepôts, complexes souterrains). Le projet fusionne l'intelligence artificielle, l'odométrie inertielle et le filtrage spatial pour offrir un suivi fluide, précis et réactif.
 
-## 🚀 Équipe & Responsabilités
+## 🎯 Contexte et Objectifs
 
-### 🦁 Lionel (Lead IA, Data & FootSLAM - Scrum Master)
-- **Acquisition Hardware** : Gestion du `SensorManager` (IMU 100Hz) et Baromètre.
-- **Cœur IA** : Intégration RoNIN via TensorFlow Lite (C++/NDK).
-- **Fusion & Filtrage** : Implémentation du Filtre de Kalman Étendu (EKF 3D).
+Dans les grands complexes industriels, la navigation est critique mais complexe en raison des interférences métalliques et de l'absence de GPS. L'objectif de Geo-SLAM est de fournir une alternative robuste capable de :
+*   **Localiser avec précision** sans infrastructure externe (balises, Wi-Fi).
+*   **Garantir une réactivité maximale** (latence zéro) entre le mouvement réel et le curseur à l'écran.
+*   **Synchroniser parfaitement** la détection des pas avec la distance virtuelle parcourue.
+*   **Respecter les contraintes spatiales** en utilisant uniquement le périmètre extérieur comme limite infranchissable, tout en permettant une libre circulation entre les zones internes.
 
-### 👓 Narcisse (Ingénieur Vision & vSLAM)
-- **Moteur SLAM** : Intégration ORB-SLAM3 pour le mapping 3D.
+## 🏗 Architecture du Projet
 
-### 🎨 Sonia (Ingénieure Logiciel Mobile & Rendu 3D)
-- **UI & Rendu** : Visualisation de la trajectoire et dashboard Android.
+Le projet repose sur une architecture hybride Kotlin/C++ (NDK) optimisée pour la performance.
 
----
+### 1. Acquisition et Gestion (Kotlin)
+*   **FootSlamManager.kt** : Gère l'acquisition IMU à 100Hz et diffuse les flux de position via `StateFlow`.
+*   **Logique de Plan** : Filtre les données cartographiques pour ne transmettre au moteur que les `outerWalls` (murs extérieurs), libérant ainsi le mouvement entre les pièces.
 
-## 🛠 Journal de Développement : Lionel (FootSLAM IA)
+### 2. Moteur de Calcul Natif (C++/NDK)
+*   **Inférence IA (TensorFlow Lite)** : Intègre un modèle RoNIN pour transformer les accélérations brutes en vecteurs de vitesse.
+*   **Calibration V14 (Boost +30%)** : Paramétrage agressif (`SCALE_FACTOR = 5.5`, `alpha = 0.95`) pour supprimer tout retard de traitement.
+*   **Synchronisation des Pas** : Système hybride (Hardware + Fallback par distance à 0.50m/pas) pour une cohérence totale du compteur.
+*   **Moteur de Collision** : Bloque le pion contre les limites périmétriques globales.
 
-Voici les étapes techniques majeures réalisées pour la mise sur pied du moteur :
+### 3. Interface et Rendu (UI)
+*   Rendu fluide à 60 FPS via `MapCanvasView`.
+*   Visualisation responsive s'adaptant dynamiquement au niveau de zoom.
 
-### 1. Acquisition IMU Haute Fréquence (100Hz)
-- **Technique** : Utilisation du `SensorManager` en mode `SENSOR_DELAY_FASTEST`.
-- **Justification** : Indispensable pour le modèle RoNIN afin de capturer les micro-accélérations de la marche humaine et éviter le repliement spectral (aliasing).
+## 🧪 Comment tester le projet ?
 
-### 2. Moteur d'Inférence RoNIN (C++/NDK)
-- **Technique** : Traitement asynchrone par fenêtres glissantes de 200 échantillons (2 sec).
-- **Justification** : Le C++ permet un traitement en temps réel sans latence, crucial pour éviter tout décalage entre le mouvement réel et l'avatar.
+Pour obtenir les meilleurs résultats, suivez cette procédure :
 
-### 3. Couche de Contraintes Physiques
-- **Technique** : Algorithme de bridage de vitesse par `MAX_STEP_LIMIT`.
-- **Justification** : Sécurité contre les "hallucinations" de l'IA lors de mouvements brusques ou de chocs, garantissant une trajectoire fluide.
+### 1. Initialisation et Calibration
+*   **Sélection du point initial** : Vous pouvez définir votre point de départ exact en effectuant un **appui long** (quelques secondes) sur la zone spécifique de la carte où vous vous trouvez.
+*   **Calibration (4s)** : Une fois positionné, restez immobile pendant les 4 premières secondes. Le système calculera automatiquement les biais des capteurs pour annuler la dérive (drift).
 
-### 4. Filtre de Kalman Étendu (EKF) & Prédiction 100Hz
-- **Technique** : Fusion statistique entre l'IMU (prédiction) et l'IA (correction).
-- **Justification** : Permet un rendu à 100 FPS (très fluide) pour Sonia, tout en corrigeant la dérive naturelle de l'IMU par les prédictions globales de l'IA.
+### 2. Test de Déplacement
+*   Commencez à marcher normalement.
+*   **Réactivité** : Observez le pion. Il doit coller instantanément à vos pas.
+*   **Compteur** : Vérifiez que chaque pas physique est comptabilisé et synchronisé avec l'avance du curseur.
 
-### 5. Altitude 3D & Baromètre
-- **Technique** : Formule hypsométrique pour convertir la pression en mètres relatifs.
-- **Justification** : Seule méthode fiable en intérieur (GPS-Denied) pour détecter les changements d'étages et les déplacements dans la dimension Z.
+### 3. Test de Navigation Inter-Zones
+*   Traversez les frontières entre deux pièces ou zones. Le pion doit circuler librement.
+*   Dirigez-vous vers les bords de la carte : le pion doit être stoppé net par le périmètre extérieur.
 
-### 6. Zero Velocity Update (ZUPT)
-- **Technique** : Détection de l'état stationnaire via seuillage adaptatif Gyro/Acc.
-- **Justification** : Arrête instantanément l'accumulation d'erreurs (drift) lorsque l'utilisateur est immobile, stabilisant la position sur la carte.
-
-### 7. Auto-Calibration des Biais
-- **Technique** : Calcul automatique des offsets IMU au repos (2 premières secondes).
-- **Justification** : Élimine les dérives matérielles systématiques des capteurs du smartphone, augmentant radicalement la précision long-terme.
-
-### 8. Transformation de Repère (Body-to-World)
-- **Technique** : Projection des vecteurs de déplacement via Quaternions de rotation.
-- **Justification** : Garantit que si le téléphone tourne mais que l'utilisateur marche droit, la trajectoire sur la carte reste alignée avec le monde réel.
-
----
-
-## 📂 Structure du Projet
-- `app/src/main/cpp/footslam` : Moteur C++ (Lionel)
-- `com.example.geo_slam.footslam` : Acquisition Kotlin (Lionel)
-- `com.example.geo_slam.ui` : Interface Sonia
+### 4. Configuration Technique
+*   **Android 15+** (Alignement 16 KB requis).
+*   **Capteurs** : Accéléromètre, Gyroscope (obligatoires) et Baromètre (recommandé).
