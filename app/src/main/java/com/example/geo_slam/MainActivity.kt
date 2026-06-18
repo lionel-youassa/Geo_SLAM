@@ -3,53 +3,51 @@ package com.example.geo_slam
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.geo_slam.footslam.FootSlamManager
+import com.example.geo_slam.ui.map.MapViewModel
+import com.example.geo_slam.vslam.VSlamManager
 
 /**
- * MainActivity : Hôte du système de navigation Geo-SLAM.
- * Initialise le moteur IA de Lionel et affiche l'interface de Sonia via les Fragments.
+ * MainActivity : Gère les permissions et le cycle de vie des moteurs.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var footSlamManager: FootSlamManager
     private lateinit var vSlamManager: VSlamManager
-
-    // ViewModel partagé avec MapFragment via activityViewModels()
     private val mapViewModel: MapViewModel by viewModels()
-
-    private var prevFootX = 0f
-    private var prevFootY = 0f
-    private var prevFootZ = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // On charge le layout qui contient UNIQUEMENT le NavHostFragment
         setContentView(R.layout.activity_main)
 
-        // Request Activity Recognition permission if needed on Android 10+
+        footSlamManager = FootSlamManager.getInstance(this)
+        vSlamManager = VSlamManager.getInstance(this)
+
+        if (savedInstanceState == null) {
+            footSlamManager.initModel(assets, "ronin_model.tflite")
+        }
+
+        checkAndRequestPermissions()
+    }
+
+    private fun checkAndRequestPermissions() {
+        val permissions = mutableListOf(Manifest.permission.CAMERA)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            if (androidx.core.content.ContextCompat.checkSelfPermission(
-                    this,
-                    android.Manifest.permission.ACTIVITY_RECOGNITION
-                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                androidx.core.app.ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(android.Manifest.permission.ACTIVITY_RECOGNITION),
-                    1001
-                )
-            }
+            permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+
+        val toRequest = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (toRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, toRequest.toTypedArray(), 1001)
         }
     }
-
-        // Initialisation du moteur FootSLAM (Lionel)
-        footSlamManager = FootSlamManager.getInstance(this)
-        footSlamManager.initModel(assets, "ronin_model.tflite")
-    }
-
-    // ── Cycle de vie ─────────────────────────────────────────────────────────
 
     override fun onResume() {
         super.onResume()
@@ -58,7 +56,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        footSlamManager.stopAcquisition()
         vSlamManager.stopCamera()
     }
 }

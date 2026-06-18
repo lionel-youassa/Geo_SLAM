@@ -5,36 +5,166 @@ import android.graphics.PointF
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.geo_slam.footslam.FootSlamManager
+import com.example.geo_slam.vslam.VSlamManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-
-data class MapUiState(
-    val displayMode: DisplayMode    = DisplayMode.FOOT_SLAM,
-    val footSlamPath: List<PointF>  = emptyList(),
-    val avatarPosition: PointF?     = null,
-    val avatarHeading: Float        = 0f,
-    val stepCount: Int              = 0,
-    val floorPlan: FloorPlan        = FloorPlan.laboVectoriel(),
-    val isRunning: Boolean          = true,
-    val countdown: Int?             = null // null means ready
-)
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.sqrt
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     private val footSlamManager = FootSlamManager.getInstance(application)
+    private val vSlamManager = VSlamManager.getInstance(application)
     
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
 
+    private var initialAnchor: PointF? = null
+    private var lastFootPosForScale: PointF? = null
+    private var smoothedPos: PointF? = null
+    
+    // Orientation au moment du reset pour aligner le vSLAM avec la carte
+    private var initialHeading: Float = 0f
+    
+    private val stabilityCounter = AtomicInteger(0)
+    private var isFirstFrameAfterStabilization = false
+
+    // Position accumulée pour le vSLAM (calculée à partir des deltas)
+    private var vSlamAccumulatedPos: PointF? = null
+
     init {
-        // Synchronisation du plan avec le moteur natif
         footSlamManager.setFloorPlan(_uiState.value.floorPlan)
-        
         startCalibrationCountdown()
-        startRealLocalization()
+        observeFootSlam()
         observeHeading()
         observeStepCount()
+        pollVSlamStatus()
+
+        vSlamManager.setOnFrameProcessedListener(object : VSlamManager.OnFrameProcessedListener {
+            override fun onFrameProcessed(dx: Float, dy: Float, dz: Float) {
+                if (stabilityCounter.get() > 0) {
+                    stabilityCounter.decrementAndGet()
+                    isFirstFrameAfterStabilization = true
+                    return
+                }
+
+                val anchor = initialAnchor ?: return
+                if (vSlamAccumulatedPos == null) vSlamAccumulatedPos = PointF(anchor.x, anchor.y)
+
+                // UTILISATION DU HEADING RÉEL (COMME FOOTSLAM)
+                // On oriente le petit pas vSLAM (dx, dz) avec la boussole actuelle
+                val currentHeading = _uiState.value.avatarHeading
+                val angleRad = Math.toRadians(currentHeading.toDouble())
+                val cosH = cos(angleRad).toFloat()
+                val sinH = sin(angleRad).toFloat()
+                
+                // Rotation du pas relatif : dz=avant/arrière, dx=gauche/droite
+                // Nord = Y décroissant (vers le haut de l'écran), Est = X croissant
+                val stepX = dx * cosH + dz * sinH
+                val stepY = -dx * sinH + dz * cosH
+                
+                // Accumulation fluide
+                val newX = vSlamAccumulatedPos!!.x + stepX
+                val newY = vSlamAccumulatedPos!!.y + stepY
+                
+                val absolutePos = constrainToPerimeter(PointF(newX, newY))
+                vSlamAccumulatedPos = absolutePos
+
+                _uiState.update { state ->
+                    if (state.displayMode == DisplayMode.FOOT_SLAM) return@update state
+                    
+                    val currentPath = state.vSlamPath.toMutableList()
+                    val last = currentPath.lastOrNull()
+                    
+                    if (isFirstFrameAfterStabilization) {
+                        isFirstFrameAfterStabilization = false
+                        currentPath.add(absolutePos)
+                        return@update state.copy(vSlamPath = currentPath, avatarPosition = absolutePos)
+                    }
+
+                    // Ajout fluide : on met à jour la ligne uniquement si le déplacement est > 5cm
+                    val updatedPath = if (last == null || dist(last, absolutePos) > 0.05f) {
+                        currentPath + absolutePos
+                    } else {
+                        currentPath
+                    }
+
+                    state.copy(
+                        vSlamPath = updatedPath,
+                        avatarPosition = if (state.displayMode == DisplayMode.VSLAM) absolutePos else state.avatarPosition
+                    )
+                }
+            }
+        })
+    }
+
+    private fun dist(p1: PointF, p2: PointF) = sqrt(((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y)).toDouble()).toFloat()
+
+    fun setInitialPosition(x: Float, y: Float) {
+        val startPos = PointF(x, y)
+        initialAnchor = startPos
+        lastFootPosForScale = startPos
+        smoothedPos = startPos
+        vSlamAccumulatedPos = startPos
+        initialHeading = _uiState.value.avatarHeading
+        
+        stabilityCounter.set(15)
+        
+        footSlamManager.setInitialPosition(x, y)
+        vSlamManager.reset() 
+        
+        _uiState.update { it.copy(
+            footSlamPath = listOf(startPos),
+            vSlamPath = listOf(startPos),
+            avatarPosition = startPos,
+            countdown = null
+        ) }
+    }
+
+    fun setDisplayMode(mode: DisplayMode) {
+        val oldMode = _uiState.value.displayMode
+        _uiState.update { it.copy(displayMode = mode) }
+        
+        if (mode != DisplayMode.FOOT_SLAM && oldMode == DisplayMode.FOOT_SLAM) {
+            stabilityCounter.set(15)
+            vSlamManager.startCamera()
+        } else if (mode == DisplayMode.FOOT_SLAM) {
+            vSlamManager.stopCamera()
+        }
+    }
+
+    private fun pollVSlamStatus() = viewModelScope.launch {
+        while (true) {
+            if (_uiState.value.displayMode != DisplayMode.FOOT_SLAM) {
+                _uiState.update { it.copy(vSlamStatus = vSlamManager.getTrackingStatus().name) }
+            }
+            delay(500)
+        }
+    }
+
+    private fun observeFootSlam() = viewModelScope.launch {
+        footSlamManager.positionFlow.collect { realPos ->
+            if (realPos.x == 0f && realPos.y == 0f && initialAnchor != null) return@collect
+            
+            lastFootPosForScale?.let { last ->
+                vSlamManager.updateScale(realPos.x - last.x, realPos.y - last.y, 0f)
+            }
+            lastFootPosForScale = realPos
+            
+            val constrainedPos = constrainToPerimeter(realPos)
+
+            _uiState.update { state ->
+                if (state.displayMode == DisplayMode.VSLAM) return@update state
+                val currentPath = state.footSlamPath.toMutableList()
+                val last = currentPath.lastOrNull()
+                if (last == null || dist(last, constrainedPos) > 0.1f) currentPath.add(constrainedPos)
+                state.copy(footSlamPath = currentPath, avatarPosition = if (state.displayMode != DisplayMode.VSLAM) constrainedPos else state.avatarPosition)
+            }
+        }
     }
 
     private fun startCalibrationCountdown() = viewModelScope.launch {
@@ -45,45 +175,46 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(countdown = null) }
     }
 
-    fun setInitialPosition(x: Float, y: Float) {
-        footSlamManager.setInitialPosition(x, y)
-        _uiState.update { it.copy(footSlamPath = listOf(PointF(x, y)), avatarPosition = PointF(x, y)) }
-    }
-
-    fun setDisplayMode(mode: DisplayMode) {
-        _uiState.update { it.copy(displayMode = mode) }
-    }
-
     fun stopLocalization() {
         _uiState.update { it.copy(isRunning = false) }
         footSlamManager.stopAcquisition()
-    }
-
-    private fun startRealLocalization() = viewModelScope.launch {
-        footSlamManager.positionFlow.collect { realPos ->
-            _uiState.update { state ->
-                val lastPos = state.footSlamPath.lastOrNull()
-                if (lastPos == null || lastPos.x != realPos.x || lastPos.y != realPos.y) {
-                    state.copy(
-                        footSlamPath = state.footSlamPath + realPos,
-                        avatarPosition = realPos
-                    )
-                } else {
-                    state.copy(avatarPosition = realPos)
-                }
-            }
-        }
+        vSlamManager.stopCamera()
     }
 
     private fun observeHeading() = viewModelScope.launch {
-        footSlamManager.headingFlow.collect { heading ->
-            _uiState.update { it.copy(avatarHeading = heading) }
-        }
+        footSlamManager.headingFlow.collect { heading -> _uiState.update { it.copy(avatarHeading = heading) } }
     }
 
     private fun observeStepCount() = viewModelScope.launch {
-        footSlamManager.stepCountFlow.collect { count ->
-            _uiState.update { it.copy(stepCount = count) }
+        footSlamManager.stepCountFlow.collect { count -> _uiState.update { it.copy(stepCount = count) } }
+    }
+
+    /**
+     * Contraint une position à rester à l'intérieur du périmètre extérieur de la carte.
+     */
+    private fun constrainToPerimeter(pt: PointF): PointF {
+        val fp = _uiState.value.floorPlan
+        var mx = pt.x + fp.doorX
+        var my = fp.doorY - pt.y
+        
+        val totalW = fp.widthInMeters
+        val totalH = fp.heightInMeters
+        val splitX = 12.65f
+        val rightH = 9.17f
+        
+        // Bornes de base
+        mx = mx.coerceIn(0.1f, totalW - 0.1f)
+        my = my.coerceIn(0.1f, totalH - 0.1f)
+        
+        // Contrainte de la forme en L (cutout en bas à droite : y > 9.17 et x > 12.65)
+        if (mx > splitX && my > rightH) {
+             if (mx - splitX > my - rightH) {
+                 my = rightH
+             } else {
+                 mx = splitX
+             }
         }
+        
+        return PointF(mx - fp.doorX, fp.doorY - my)
     }
 }
