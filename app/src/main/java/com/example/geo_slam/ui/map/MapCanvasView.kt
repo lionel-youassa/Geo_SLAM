@@ -36,6 +36,9 @@ class MapCanvasView @JvmOverloads constructor(
     var vSlamPath: List<PointF> = emptyList()
         set(value) { field = value; invalidate() }
 
+    var fusionPath: List<PointF> = emptyList()
+        set(value) { field = value; invalidate() }
+
     var avatarPosition: PointF? = null
         set(value) { field = value; invalidate() }
 
@@ -71,6 +74,11 @@ class MapCanvasView @JvmOverloads constructor(
     // vSLAM : Teal/Vert d'eau (#26A69A)
     private val vSlamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#26A69A"); strokeWidth = 10f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
+    }
+    
+    // Fusion : Bleu Indigo (#3F51B5)
+    private val fusionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#3F51B5"); strokeWidth = 12f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
     }
 
     private val avatarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.RED }
@@ -132,8 +140,11 @@ class MapCanvasView @JvmOverloads constructor(
         if (displayMode == DisplayMode.FOOT_SLAM || displayMode == DisplayMode.FUSION) {
             drawTrajectory(canvas, footSlamPath, footSlamPaint)
         }
-        if (displayMode == DisplayMode.VSLAM || displayMode == DisplayMode.FUSION) {
+        if (displayMode == DisplayMode.VSLAM) {
             drawTrajectory(canvas, vSlamPath, vSlamPaint)
+        }
+        if (displayMode == DisplayMode.FUSION) {
+            drawTrajectory(canvas, fusionPath, fusionPaint)
         }
 
         // Avatar

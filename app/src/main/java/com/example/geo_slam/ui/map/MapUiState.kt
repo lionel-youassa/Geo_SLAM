@@ -6,6 +6,7 @@ data class MapUiState(
     val floorPlan: FloorPlan = FloorPlan.laboVectoriel(),
     val footSlamPath: List<PointF> = emptyList(),
     val vSlamPath: List<PointF> = emptyList(),
+    val fusionPath: List<PointF> = emptyList(),
     val avatarPosition: PointF? = null,
     val avatarHeading: Float = 0f,
     val stepCount: Int = 0,

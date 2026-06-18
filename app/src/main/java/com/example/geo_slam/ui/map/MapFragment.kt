@@ -77,6 +77,7 @@ class MapFragment : Fragment() {
             floorPlan = state.floorPlan
             footSlamPath = state.footSlamPath
             vSlamPath = state.vSlamPath
+            fusionPath = state.fusionPath
             avatarPosition = state.avatarPosition
             avatarHeading = state.avatarHeading
             stepCount = state.stepCount

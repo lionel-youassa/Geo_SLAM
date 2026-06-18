@@ -27,14 +27,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var lastFootPosForScale: PointF? = null
     private var smoothedPos: PointF? = null
     
+    // Position accumulée pour le vSLAM (calculée à partir des deltas)
+    private var vSlamAccumulatedPos: PointF? = null
+    private var fusionAccumulatedPos: PointF? = null
+    
     // Orientation au moment du reset pour aligner le vSLAM avec la carte
     private var initialHeading: Float = 0f
     
     private val stabilityCounter = AtomicInteger(0)
     private var isFirstFrameAfterStabilization = false
-
-    // Position accumulée pour le vSLAM (calculée à partir des deltas)
-    private var vSlamAccumulatedPos: PointF? = null
 
     init {
         footSlamManager.setFloorPlan(_uiState.value.floorPlan)
@@ -54,49 +55,52 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
                 val anchor = initialAnchor ?: return
                 if (vSlamAccumulatedPos == null) vSlamAccumulatedPos = PointF(anchor.x, anchor.y)
+                if (fusionAccumulatedPos == null) fusionAccumulatedPos = PointF(anchor.x, anchor.y)
 
-                // UTILISATION DU HEADING RÉEL (COMME FOOTSLAM)
-                // On oriente le petit pas vSLAM (dx, dz) avec la boussole actuelle
                 val currentHeading = _uiState.value.avatarHeading
                 val angleRad = Math.toRadians(currentHeading.toDouble())
                 val cosH = cos(angleRad).toFloat()
                 val sinH = sin(angleRad).toFloat()
                 
-                // Rotation du pas relatif : dz=avant/arrière, dx=gauche/droite
-                // Nord = Y décroissant (vers le haut de l'écran), Est = X croissant
+                // Rotation du pas relatif vSLAM : dz=avant/arrière, dx=gauche/droite
                 val stepX = dx * cosH + dz * sinH
                 val stepY = -dx * sinH + dz * cosH
                 
-                // Accumulation fluide
-                val newX = vSlamAccumulatedPos!!.x + stepX
-                val newY = vSlamAccumulatedPos!!.y + stepY
-                
-                val absolutePos = constrainToPerimeter(PointF(newX, newY))
-                vSlamAccumulatedPos = absolutePos
+                // 1. Mise à jour vSLAM pur
+                vSlamAccumulatedPos = constrainToPerimeter(PointF(vSlamAccumulatedPos!!.x + stepX, vSlamAccumulatedPos!!.y + stepY))
+
+                // 2. Mise à jour FUSION (On utilise le vSLAM pour la fluidité)
+                if (_uiState.value.vSlamStatus == "TRACKING") {
+                    fusionAccumulatedPos = constrainToPerimeter(PointF(fusionAccumulatedPos!!.x + stepX, fusionAccumulatedPos!!.y + stepY))
+                }
 
                 _uiState.update { state ->
-                    if (state.displayMode == DisplayMode.FOOT_SLAM) return@update state
+                    val mode = state.displayMode
+                    if (mode == DisplayMode.FOOT_SLAM) return@update state
                     
-                    val currentPath = state.vSlamPath.toMutableList()
+                    val activePos = if (mode == DisplayMode.FUSION) fusionAccumulatedPos!! else vSlamAccumulatedPos!!
+                    
+                    val currentPath = if (mode == DisplayMode.FUSION) state.fusionPath.toMutableList() else state.vSlamPath.toMutableList()
                     val last = currentPath.lastOrNull()
                     
                     if (isFirstFrameAfterStabilization) {
                         isFirstFrameAfterStabilization = false
-                        currentPath.add(absolutePos)
-                        return@update state.copy(vSlamPath = currentPath, avatarPosition = absolutePos)
+                        currentPath.add(activePos)
+                        return@update if (mode == DisplayMode.FUSION) state.copy(fusionPath = currentPath, avatarPosition = activePos)
+                                      else state.copy(vSlamPath = currentPath, avatarPosition = activePos)
                     }
 
-                    // Ajout fluide : on met à jour la ligne uniquement si le déplacement est > 5cm
-                    val updatedPath = if (last == null || dist(last, absolutePos) > 0.05f) {
-                        currentPath + absolutePos
+                    val updatedPath = if (last == null || dist(last, activePos) > 0.05f) {
+                        currentPath + activePos
                     } else {
                         currentPath
                     }
 
-                    state.copy(
-                        vSlamPath = updatedPath,
-                        avatarPosition = if (state.displayMode == DisplayMode.VSLAM) absolutePos else state.avatarPosition
-                    )
+                    if (mode == DisplayMode.FUSION) {
+                        state.copy(fusionPath = updatedPath, avatarPosition = activePos)
+                    } else {
+                        state.copy(vSlamPath = updatedPath, avatarPosition = activePos)
+                    }
                 }
             }
         })
@@ -110,6 +114,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         lastFootPosForScale = startPos
         smoothedPos = startPos
         vSlamAccumulatedPos = startPos
+        fusionAccumulatedPos = startPos
         initialHeading = _uiState.value.avatarHeading
         
         stabilityCounter.set(15)
@@ -120,6 +125,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(
             footSlamPath = listOf(startPos),
             vSlamPath = listOf(startPos),
+            fusionPath = listOf(startPos),
             avatarPosition = startPos,
             countdown = null
         ) }
@@ -158,11 +164,33 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             val constrainedPos = constrainToPerimeter(realPos)
 
             _uiState.update { state ->
+                // LOGIQUE DE FUSION : Le FootSLAM recadre la fusion si le vSLAM dérive ou est perdu
+                if (state.displayMode == DisplayMode.FUSION) {
+                    val currentFusion = fusionAccumulatedPos ?: constrainedPos
+                    if (state.vSlamStatus != "TRACKING") {
+                        fusionAccumulatedPos = constrainedPos
+                    } else {
+                        // Correction forte de la dérive (80% FootSLAM / 20% vSLAM)
+                        // On donne la priorité au FootSLAM pour la vérité de terrain
+                        fusionAccumulatedPos = PointF(
+                            currentFusion.x * 0.2f + constrainedPos.x * 0.8f,
+                            currentFusion.y * 0.2f + constrainedPos.y * 0.8f
+                        )
+                    }
+                }
+
                 if (state.displayMode == DisplayMode.VSLAM) return@update state
+                
                 val currentPath = state.footSlamPath.toMutableList()
                 val last = currentPath.lastOrNull()
                 if (last == null || dist(last, constrainedPos) > 0.1f) currentPath.add(constrainedPos)
-                state.copy(footSlamPath = currentPath, avatarPosition = if (state.displayMode != DisplayMode.VSLAM) constrainedPos else state.avatarPosition)
+                
+                state.copy(
+                    footSlamPath = currentPath, 
+                    avatarPosition = if (state.displayMode == DisplayMode.FUSION) fusionAccumulatedPos ?: constrainedPos 
+                                     else if (state.displayMode == DisplayMode.FOOT_SLAM) constrainedPos 
+                                     else state.avatarPosition
+                )
             }
         }
     }
