@@ -16,8 +16,8 @@ import com.example.geo_slam.databinding.FragmentMapBinding
 import kotlinx.coroutines.launch
 
 /**
- * MapFragment : Interface synchronisée avec sélecteur de mode via un Spinner (Dropdown).
- * Affiche les trajectoires et les statuts des moteurs.
+ * MapFragment : Interface synchronisée avec sélecteur de mode via un Spinner.
+ * Utilise un flag pour éviter les boucles infinies entre le ViewModel et la Vue.
  */
 class MapFragment : Fragment() {
 
@@ -25,6 +25,10 @@ class MapFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: MapViewModel by activityViewModels()
+    
+    // Flag pour savoir si le changement vient du code (render) ou de l'utilisateur
+    private var isProgrammaticSelection = false
+    private var lastRenderedMode: DisplayMode? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -42,7 +46,6 @@ class MapFragment : Fragment() {
             Toast.makeText(context, "Position synchronisée !", Toast.LENGTH_SHORT).show()
         }
 
-        // Configuration du Spinner pour le mode de navigation (Présent dans tous les layouts)
         setupModeSpinner()
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -68,18 +71,18 @@ class MapFragment : Fragment() {
         
         binding.spinnerMode.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                // Si la sélection vient du render(), on ne fait rien
+                if (isProgrammaticSelection) return
+
                 val mode = when(position) {
                     0 -> DisplayMode.FOOT_SLAM
                     1 -> DisplayMode.FUSION
                     else -> DisplayMode.VSLAM
                 }
+
                 if (viewModel.uiState.value.displayMode != mode) {
                     viewModel.setDisplayMode(mode)
-                    val modeName = when(mode) {
-                        DisplayMode.FOOT_SLAM -> "FootSLAM (IA)"
-                        DisplayMode.FUSION -> "Fusion (IA + Caméra)"
-                        DisplayMode.VSLAM -> "vSLAM (Caméra)"
-                    }
+                    val modeName = modes[position]
                     Toast.makeText(context, "Mode $modeName activé", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -100,14 +103,17 @@ class MapFragment : Fragment() {
             vSlamStatus = state.vSlamStatus
         }
 
-        // Synchronisation du Spinner avec l'état du ViewModel
-        val pos = when(state.displayMode) {
-            DisplayMode.FOOT_SLAM -> 0
-            DisplayMode.FUSION -> 1
-            DisplayMode.VSLAM -> 2
-        }
-        if (binding.spinnerMode.selectedItemPosition != pos) {
-            binding.spinnerMode.setSelection(pos)
+        // Synchronisation du Spinner uniquement si le mode a changé dans le ViewModel
+        if (state.displayMode != lastRenderedMode) {
+            lastRenderedMode = state.displayMode
+            val targetPos = when(state.displayMode) {
+                DisplayMode.FOOT_SLAM -> 0
+                DisplayMode.FUSION -> 1
+                DisplayMode.VSLAM -> 2
+            }
+            isProgrammaticSelection = true
+            binding.spinnerMode.setSelection(targetPos, false)
+            binding.spinnerMode.post { isProgrammaticSelection = false }
         }
 
         if (state.countdown != null) {

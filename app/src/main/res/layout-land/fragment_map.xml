@@ -77,7 +77,8 @@
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
                             android:background="@drawable/bg_spinner_frame"
-                            android:paddingEnd="8dp"/>
+                            android:paddingEnd="8dp"
+                            android:paddingStart="8dp"/>
                     </LinearLayout>
 
                     <!-- Boutons d'action -->
