@@ -37,9 +37,13 @@ class FootSlamManager(private val context: Context) : SensorEventListener {
     private val _stepCountFlow = MutableStateFlow(0)
     val stepCountFlow = _stepCountFlow.asStateFlow()
 
+    var isModelLoaded: Boolean = false
+        private set
+
     fun initModel(assetManager: AssetManager, modelPath: String): Boolean {
         setStepDetectorSupportedNative(stepDetector != null)
-        return loadModelNative(assetManager, modelPath)
+        isModelLoaded = loadModelNative(assetManager, modelPath)
+        return isModelLoaded
     }
 
     /**

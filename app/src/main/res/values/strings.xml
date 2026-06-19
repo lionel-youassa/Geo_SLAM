@@ -16,9 +16,10 @@
     <string name="mode_foot">FootSLAM</string>
     <string name="mode_fusion">Fusion</string>
     <string name="mode_vslam">vSLAM</string>
-    <string name="legend_foot">FootSLAM</string>
-    <string name="legend_vslam">vSLAM</string>
-    <string name="legend_position">Position</string>
+    <string name="legend_foot">FootSLAM (IA)</string>
+    <string name="legend_vslam">vSLAM (Vision)</string>
+    <string name="legend_fusion">Fusion (Hybride)</string>
+    <string name="legend_position">Ma Position</string>
     <string name="btn_stop">Arrêter</string>
     <string name="btn_save">Sauvegarder</string>
     <string name="section_mode">Mode de localisation</string>

@@ -4,221 +4,207 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurfaceVariant">
+    android:background="#F3F4F6">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal">
 
-        <!-- PANNEAU GAUCHE -->
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <!-- PANNEAU GAUCHE (Contrôles et Légende) -->
+        <LinearLayout
             android:layout_width="240dp"
             android:layout_height="match_parent"
-            android:background="?attr/colorSurface">
+            android:background="#FFFFFF"
+            android:elevation="4dp"
+            android:orientation="vertical">
 
-            <!-- Header violet -->
-            <LinearLayout
-                android:id="@+id/headerContainer"
+            <ScrollView
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="?attr/colorPrimary"
-                android:paddingLeft="12dp"
-                android:paddingRight="12dp"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
-                app:layout_constraintTop_toTopOf="parent">
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:scrollbars="none">
 
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:src="@drawable/ic_geo_slam_logo"
-                    android:contentDescription="@null"
-                    android:layout_marginEnd="8dp"
-                    app:tint="?attr/colorOnPrimary"/>
-
-                <TextView
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/app_name"
-                    android:textColor="?attr/colorOnPrimary"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"/>
+                    android:orientation="vertical"
+                    android:paddingBottom="16dp">
 
-                <TextView
-                    android:id="@+id/statusChipText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/status_running"
-                    android:textColor="#DDFFFFFF"
-                    android:textSize="10sp"/>
-            </LinearLayout>
+                    <!-- Header -->
+                    <LinearLayout
+                        android:id="@+id/headerContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_header_rounded_bottom"
+                        android:padding="16dp">
 
-            <!-- Sélecteur de mode -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="GeoSlam"
+                            android:textColor="#FFFFFF"
+                            android:textSize="18sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Navigation active"
+                            android:textColor="#E0E0E0"
+                            android:textSize="10sp"/>
+                    </LinearLayout>
+
+                    <!-- Sélecteur Dropdown -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="MODE DE NAVIGATION"
+                            android:textColor="#757575"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="8dp"/>
+
+                        <Spinner
+                            android:id="@+id/spinnerMode"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:background="@drawable/bg_spinner_frame"
+                            android:paddingEnd="8dp"/>
+                    </LinearLayout>
+
+                    <!-- Boutons d'action -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="16dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnStop"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:text="Arrêter"
+                            android:textColor="#FF5252"
+                            app:strokeColor="#FF5252"
+                            app:icon="@drawable/ic_stop"
+                            app:iconTint="#FF5252"
+                            android:layout_marginBottom="12dp"
+                            app:cornerRadius="12dp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSave"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:text="Sauvegarder"
+                            android:backgroundTint="#B2EBF2"
+                            android:textColor="#26A69A"
+                            app:icon="@drawable/ic_save"
+                            app:iconTint="#26A69A"
+                            app:cornerRadius="12dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- LÉGENDE FIXE AU BAS DU PANNEAU -->
             <LinearLayout
-                android:id="@+id/modeSelectorContainer"
+                android:id="@+id/legendContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="12dp"
-                app:layout_constraintTop_toBottomOf="@id/headerContainer">
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="12dp"
+                android:background="#FAFAFA">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/section_mode"
-                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:text="LÉGENDE DES TRAJECTOIRES"
+                    android:textColor="#757575"
                     android:textSize="10sp"
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp"/>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnFootSlam"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:text="@string/mode_foot"
-                    android:textSize="11sp"
-                    android:textAllCaps="false"
-                    app:cornerRadius="12dp"
-                    android:textColor="#26A69A"
-                    app:strokeColor="#26A69A"
-                    app:backgroundTint="#E0F2F1"
-                    android:layout_marginBottom="4dp"/>
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
+                    <View android:layout_width="14dp" android:layout_height="4dp" android:background="#673AB7"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/legend_foot" android:textSize="10sp" android:layout_marginStart="8dp" android:textColor="#424242"/>
+                </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnFusion"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:text="@string/mode_fusion"
-                    android:textSize="11sp"
-                    android:textAllCaps="false"
-                    app:cornerRadius="12dp"
-                    android:textColor="#26A69A"
-                    app:strokeColor="#26A69A"
-                    app:backgroundTint="#E0F2F1"
-                    android:layout_marginBottom="4dp"/>
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
+                    <View android:layout_width="14dp" android:layout_height="4dp" android:background="#26A69A"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/legend_vslam" android:textSize="10sp" android:layout_marginStart="8dp" android:textColor="#424242"/>
+                </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnVSlam"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:text="@string/mode_vslam"
-                    android:textSize="11sp"
-                    android:textAllCaps="false"
-                    app:cornerRadius="12dp"
-                    android:textColor="#26A69A"
-                    app:strokeColor="#26A69A"
-                    app:backgroundTint="#E0F2F1"/>
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
+                    <View android:layout_width="14dp" android:layout_height="4dp" android:background="#3F51B5"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/legend_fusion" android:textSize="10sp" android:layout_marginStart="8dp" android:textColor="#424242"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <View android:layout_width="8dp" android:layout_height="8dp" android:background="@drawable/dot_red"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/legend_position" android:textSize="10sp" android:layout_marginStart="8dp" android:textColor="#424242"/>
+                </LinearLayout>
+
             </LinearLayout>
-
-            <!-- Boutons d'action ancrés en bas -->
-            <LinearLayout
-                android:id="@+id/buttonsContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="12dp"
-                android:gravity="center_vertical"
-                app:layout_constraintBottom_toBottomOf="parent">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnStop"
-                    android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_weight="1"
-                    android:text="@string/btn_stop"
-                    android:layout_marginEnd="8dp"
-                    app:backgroundTint="@color/status_error_container"
-                    android:textColor="@color/status_error"
-                    app:cornerRadius="12dp"/>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSave"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    app:icon="@drawable/ic_save"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    android:backgroundTint="#B2EBF2"
-                    app:iconTint="#26A69A"
-                    app:cornerRadius="12dp"
-                    android:insetLeft="0dp"
-                    android:insetTop="0dp"
-                    android:insetRight="0dp"
-                    android:insetBottom="0dp"/>
-            </LinearLayout>
-        </androidx.constraintlayout.widget.ConstraintLayout>
+        </LinearLayout>
 
         <!-- MAP -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/mapCard"
+        <com.example.geo_slam.ui.map.MapCanvasView
+            android:id="@+id/mapCanvasView"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_margin="10dp"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/map_background"
-            app:strokeWidth="0dp">
-
-            <com.example.geo_slam.ui.map.MapCanvasView
-                android:id="@+id/mapCanvasView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"/>
-
-        </com.google.android.material.card.MaterialCardView>
+            android:layout_margin="12dp"
+            android:background="@drawable/bg_map_frame"/>
     </LinearLayout>
 
-    <!-- Overlay de Calibration -->
+    <!-- Calibration Overlay -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/calibrationOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#AA000000"
-        android:visibility="gone"
-        android:elevation="10dp"
-        android:clickable="true"
-        android:focusable="true">
-
-        <LinearLayout
+        android:background="#CC000000"
+        android:elevation="20dp"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/txtCountdown"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
+            android:text="3"
+            android:textColor="#FFFFFF"
+            android:textSize="80sp"
+            android:textStyle="bold"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="STABILISATION DU SYSTÈME"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:id="@+id/txtCountdown"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="3"
-                android:textColor="#FFFFFF"
-                android:textSize="80sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Veuillez rester immobile..."
-                android:textColor="#DDFFFFFF"
-                android:textSize="14sp"/>
-        </LinearLayout>
+            app:layout_constraintEnd_toEndOf="parent"/>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
